@@ -619,8 +619,17 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 									aria-expanded={open}
 									className="justify-between w-full"
 									data-testid="mode-select-trigger">
-									<div className="truncate">
-										{getCurrentMode()?.name || t("prompts:modes.selectMode")}
+									<div className="flex items-center gap-1.5 truncate">
+										<span className="truncate">
+											{getCurrentMode()?.name || t("prompts:modes.selectMode")}
+										</span>
+										{getCurrentMode()?.source && (
+											<span className="text-[10px] px-1 py-0.5 rounded bg-vscode-badge-background text-vscode-badge-foreground">
+												{getCurrentMode()?.source === "project"
+													? t("common:scope.project")
+													: t("common:scope.global")}
+											</span>
+										)}
 									</div>
 									<ChevronDown className="opacity-50" />
 								</Button>
@@ -672,16 +681,24 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 														}}
 														data-testid={`mode-option-${modeConfig.slug}`}>
 														<div className="flex items-center justify-between w-full">
-															<span
-																style={{
-																	whiteSpace: "nowrap",
-																	overflow: "hidden",
-																	textOverflow: "ellipsis",
-																	flex: 2,
-																	minWidth: 0,
-																}}>
-																{modeConfig.name}
-															</span>
+															<div className="flex items-center gap-1.5 flex-1 min-w-0">
+																<span
+																	style={{
+																		whiteSpace: "nowrap",
+																		overflow: "hidden",
+																		textOverflow: "ellipsis",
+																		minWidth: 0,
+																	}}>
+																	{modeConfig.name}
+																</span>
+																{modeConfig.source && (
+																	<span className="text-[10px] px-1 py-0.5 rounded bg-vscode-badge-background text-vscode-badge-foreground">
+																		{modeConfig.source === "project"
+																			? t("common:scope.project")
+																			: t("common:scope.global")}
+																	</span>
+																)}
+															</div>
 															<span
 																className="text-foreground"
 																style={{
@@ -741,7 +758,16 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 					{visualMode && findModeBySlug(visualMode, customModes) && (
 						<div className="flex gap-3 mb-4">
 							<div className="flex-1">
-								<div className="font-bold mb-1">{t("prompts:createModeDialog.name.label")}</div>
+								<div className="flex items-center gap-1.5 mb-1">
+									<span className="font-bold">{t("prompts:createModeDialog.name.label")}</span>
+									{findModeBySlug(visualMode, customModes)?.source && (
+										<span className="text-[10px] px-1 py-0.5 rounded bg-vscode-badge-background text-vscode-badge-foreground">
+											{findModeBySlug(visualMode, customModes)?.source === "project"
+												? t("common:scope.project")
+												: t("common:scope.global")}
+										</span>
+									)}
+								</div>
 								<div className="flex gap-2">
 									<Input
 										type="text"
