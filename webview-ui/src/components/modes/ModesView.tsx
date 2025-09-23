@@ -763,8 +763,8 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 									{findModeBySlug(visualMode, customModes)?.source && (
 										<span className="text-[10px] px-1 py-0.5 rounded bg-vscode-badge-background text-vscode-badge-foreground">
 											{findModeBySlug(visualMode, customModes)?.source === "project"
-												? t("common:scope.project")
-												: t("common:scope.global")}
+												? t("common:customModes.scope.project")
+												: t("common:customModes.scope.global")}
 										</span>
 									)}
 								</div>

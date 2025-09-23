@@ -212,7 +212,9 @@ export const ModeSelector = ({
 					<span className="truncate">{selectedMode?.name || ""}</span>
 					{selectedMode?.source && (
 						<span className="text-[10px] px-1 py-0.5 rounded bg-vscode-badge-background text-vscode-badge-foreground">
-							{selectedMode.source === "project" ? t("common:scope.project") : t("common:scope.global")}
+							{selectedMode.source === "project"
+								? t("common:customModes.scope.project")
+								: t("common:customModes.scope.global")}
 						</span>
 					)}
 				</PopoverTrigger>
