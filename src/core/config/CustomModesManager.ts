@@ -40,6 +40,7 @@ interface ExportResult {
 
 interface ImportResult {
 	success: boolean
+	slug?: string
 	error?: string
 }
 
@@ -989,7 +990,8 @@ export class CustomModesManager {
 			// Refresh the modes after import
 			await this.refreshMergedState()
 
-			return { success: true }
+			// Return the imported mode's slug so the UI can activate it
+			return { success: true, slug: importData.customModes[0]?.slug }
 		} catch (error) {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			logger.error("Failed to import mode with rules", { error: errorMessage })

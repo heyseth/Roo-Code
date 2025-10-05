@@ -2222,10 +2222,11 @@ export const webviewMessageHandler = async (
 						await updateGlobalState("customModes", customModes)
 						await provider.postStateToWebview()
 
-						// Send success message to webview
+						// Send success message to webview, include the imported slug so UI can switch
 						provider.postMessageToWebview({
 							type: "importModeResult",
 							success: true,
+							slug: result.slug,
 						})
 
 						// Show success message

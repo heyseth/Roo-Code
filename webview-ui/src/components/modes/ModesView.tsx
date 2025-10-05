@@ -186,6 +186,17 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 		[visualMode, switchMode],
 	)
 
+	// Keep latest handleModeSwitch and customModes available inside window message handler
+	const handleModeSwitchRef = useRef(handleModeSwitch)
+	useEffect(() => {
+		handleModeSwitchRef.current = handleModeSwitch
+	}, [handleModeSwitch])
+
+	const customModesRef = useRef(customModes)
+	useEffect(() => {
+		customModesRef.current = customModes
+	}, [customModes])
+
 	// Handler for popover open state change
 	const onOpenChange = useCallback((open: boolean) => {
 		setOpen(open)
@@ -460,7 +471,21 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 				setIsImporting(false)
 				setShowImportDialog(false)
 
-				if (!message.success) {
+				if (message.success) {
+					const slug = (message as any).slug as string | undefined
+					if (slug) {
+						// Try switching using the freshest mode list available
+						const all = getAllModes(customModesRef.current)
+						const importedMode = all.find((m) => m.slug === slug)
+						if (importedMode) {
+							handleModeSwitchRef.current(importedMode)
+						} else {
+							// Fallback: switch by slug to keep backend in sync and update visual selection
+							setVisualMode(slug)
+							switchMode(slug)
+						}
+					}
+				} else {
 					// Only log error if it's not a cancellation
 					if (message.error !== "cancelled") {
 						console.error("Failed to import mode:", message.error)
