@@ -412,7 +412,7 @@ export class CustomModesManager {
 				const errorMessage = `Invalid mode configuration: ${errorMessages}`
 				logger.error("Mode validation failed", { slug, errors: validationResult.error.errors })
 				vscode.window.showErrorMessage(t("common:customModes.errors.updateFailed", { error: errorMessage }))
-				return
+				throw new Error(errorMessage)
 			}
 
 			const isProjectMode = config.source === "project"
@@ -458,6 +458,7 @@ export class CustomModesManager {
 			const errorMessage = error instanceof Error ? error.message : String(error)
 			logger.error("Failed to update custom mode", { slug, error: errorMessage })
 			vscode.window.showErrorMessage(t("common:customModes.errors.updateFailed", { error: errorMessage }))
+			throw error
 		}
 	}
 
