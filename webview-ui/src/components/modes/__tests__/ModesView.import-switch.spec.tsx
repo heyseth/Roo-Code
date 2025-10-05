@@ -91,4 +91,28 @@ describe("ModesView - auto switch after import", () => {
 		})
 		expect(trigger).toHaveTextContent("Code")
 	})
+
+	it("uses fallback branch when imported slug not yet present in customModes", async () => {
+		// Render with empty customModes - imported mode hasn't been added to state yet
+		render(
+			<ExtensionStateContext.Provider value={{ ...baseState, customModes: [] } as any}>
+				<ModesView onDone={vitest.fn()} />
+			</ExtensionStateContext.Provider>,
+		)
+
+		const trigger = screen.getByTestId("mode-select-trigger")
+		expect(trigger).toHaveTextContent("Code")
+
+		// Simulate successful import for a slug not yet in customModes (timing race condition)
+		window.dispatchEvent(
+			new MessageEvent("message", {
+				data: { type: "importModeResult", success: true, slug: "not-yet-loaded-mode" },
+			}),
+		)
+
+		// Fallback branch should send backend switch message
+		await waitFor(() => {
+			expect(vscode.postMessage).toHaveBeenCalledWith({ type: "mode", text: "not-yet-loaded-mode" })
+		})
+	})
 })

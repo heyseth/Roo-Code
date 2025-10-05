@@ -205,6 +205,11 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 		switchModeRef.current = switchMode
 	}, [switchMode])
 
+	// Sync visualMode with backend mode changes to prevent desync
+	useEffect(() => {
+		setVisualMode(mode)
+	}, [mode])
+
 	// Handler for popover open state change
 	const onOpenChange = useCallback((open: boolean) => {
 		setOpen(open)

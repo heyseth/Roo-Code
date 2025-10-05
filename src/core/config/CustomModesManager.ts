@@ -932,7 +932,7 @@ export class CustomModesManager {
 			// Parse the YAML content with proper type validation
 			let importData: ImportData
 			try {
-				const parsed = yaml.parse(yamlContent)
+				const parsed = this.parseYamlSafely(yamlContent, '')
 
 				// Validate the structure
 				if (!parsed?.customModes || !Array.isArray(parsed.customModes) || parsed.customModes.length === 0) {
