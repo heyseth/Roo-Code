@@ -1981,6 +1981,7 @@ export const webviewMessageHandler = async (
 			break
 		case "updateCustomMode":
 			if (message.modeConfig) {
+			try {
 				// Check if this is a new mode or an update to an existing mode
 				const existingModes = await provider.customModesManager.getCustomModes()
 				const isNewMode = !existingModes.some((mode) => mode.slug === message.modeConfig?.slug)
@@ -2015,6 +2016,10 @@ export const webviewMessageHandler = async (
 							TelemetryService.instance.captureModeSettingChanged(changedSettings[0])
 						}
 					}
+				}
+			} catch (error) {
+				// Error already shown to user by updateCustomMode
+				// Just prevent unhandled rejection and skip state updates
 				}
 			}
 			break
