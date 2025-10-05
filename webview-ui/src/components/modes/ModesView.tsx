@@ -55,6 +55,8 @@ const availableGroups = (Object.keys(TOOL_GROUPS) as ToolGroup[]).filter((group)
 
 type ModeSource = "global" | "project"
 
+type ImportModeResult = { type: 'importModeResult'; success: boolean; slug?: string; error?: string }
+
 type ModesViewProps = {
 	onDone: () => void
 }
@@ -478,9 +480,7 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 				setShowImportDialog(false)
 
 				if (message.success) {
-// Type safe access to slug
-type ImportModeResult = { type: 'importModeResult'; success: boolean; slug?: string; error?: string }
-const { slug } = message as ImportModeResult
+					const { slug } = message as ImportModeResult
 					if (slug) {
 						// Try switching using the freshest mode list available
 						const all = getAllModes(customModesRef.current)
