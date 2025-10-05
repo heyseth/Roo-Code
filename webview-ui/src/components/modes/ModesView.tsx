@@ -478,7 +478,9 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 				setShowImportDialog(false)
 
 				if (message.success) {
-					const slug = (message as any).slug as string | undefined
+// Type safe access to slug
+type ImportModeResult = { type: 'importModeResult'; success: boolean; slug?: string; error?: string }
+const { slug } = message as ImportModeResult
 					if (slug) {
 						// Try switching using the freshest mode list available
 						const all = getAllModes(customModesRef.current)
