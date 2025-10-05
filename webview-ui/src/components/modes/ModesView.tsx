@@ -197,6 +197,12 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 		customModesRef.current = customModes
 	}, [customModes])
 
+	// Keep latest switchMode available inside window message handler
+	const switchModeRef = useRef(switchMode)
+	useEffect(() => {
+		switchModeRef.current = switchMode
+	}, [switchMode])
+
 	// Handler for popover open state change
 	const onOpenChange = useCallback((open: boolean) => {
 		setOpen(open)
@@ -482,7 +488,7 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 						} else {
 							// Fallback: switch by slug to keep backend in sync and update visual selection
 							setVisualMode(slug)
-							switchMode(slug)
+							switchModeRef.current?.(slug)
 						}
 					}
 				} else {
