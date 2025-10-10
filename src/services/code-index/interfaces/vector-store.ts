@@ -68,6 +68,12 @@ export interface IVectorStore {
 	 * @returns Promise resolving to boolean indicating if the collection exists and has points
 	 */
 	hasIndexedData(): Promise<boolean>
+
+	/**
+	 * Marks the indexing process as complete by storing metadata
+	 * Should be called after a successful full workspace scan
+	 */
+	markIndexingComplete(): Promise<void>
 }
 
 export interface VectorStoreSearchResult {

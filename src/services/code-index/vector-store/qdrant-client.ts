@@ -1,10 +1,11 @@
 import { QdrantClient, Schemas } from "@qdrant/js-client-rest"
 import { createHash } from "crypto"
 import * as path from "path"
+import { v5 as uuidv5 } from "uuid"
 import { getWorkspacePath } from "../../../utils/path"
 import { IVectorStore } from "../interfaces/vector-store"
 import { Payload, VectorStoreSearchResult } from "../interfaces"
-import { DEFAULT_MAX_SEARCH_RESULTS, DEFAULT_SEARCH_MIN_SCORE } from "../constants"
+import { DEFAULT_MAX_SEARCH_RESULTS, DEFAULT_SEARCH_MIN_SCORE, QDRANT_CODE_BLOCK_NAMESPACE } from "../constants/"
 import { t } from "../../../i18n"
 
 /**
@@ -561,10 +562,54 @@ export class QdrantVectorStore implements IVectorStore {
 			}
 			// Check if the collection has any points indexed
 			const pointsCount = collectionInfo.points_count ?? 0
-			return pointsCount > 0
+			if (pointsCount === 0) {
+				return false
+			}
+
+			// Check if the indexing completion marker exists
+			// This ensures we don't return true for partially indexed collections
+			// Use a deterministic UUID generated from a constant string
+			const metadataId = uuidv5("__indexing_metadata__", QDRANT_CODE_BLOCK_NAMESPACE)
+			const metadataPoints = await this.client.retrieve(this.collectionName, {
+				ids: [metadataId],
+			})
+
+			// Return true only if the completion marker exists and is marked as complete
+			return metadataPoints.length > 0 && metadataPoints[0].payload?.indexing_complete === true
 		} catch (error) {
 			console.warn("[QdrantVectorStore] Failed to check if collection has data:", error)
 			return false
+		}
+	}
+
+	/**
+	 * Marks the indexing process as complete by storing metadata
+	 * Should be called after a successful full workspace scan
+	 */
+	async markIndexingComplete(): Promise<void> {
+		try {
+			// Create a metadata point with a deterministic UUID to mark indexing as complete
+			// Use uuidv5 to generate a consistent UUID from a constant string
+			const metadataId = uuidv5("__indexing_metadata__", QDRANT_CODE_BLOCK_NAMESPACE)
+
+			await this.client.upsert(this.collectionName, {
+				points: [
+					{
+						id: metadataId,
+						vector: new Array(this.vectorSize).fill(0),
+						payload: {
+							type: "metadata",
+							indexing_complete: true,
+							completed_at: Date.now(),
+						},
+					},
+				],
+				wait: true,
+			})
+			console.log("[QdrantVectorStore] Marked indexing as complete")
+		} catch (error) {
+			console.error("[QdrantVectorStore] Failed to mark indexing as complete:", error)
+			throw error
 		}
 	}
 }

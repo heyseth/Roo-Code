@@ -218,6 +218,9 @@ export class CodeIndexOrchestrator {
 
 				await this._startWatcher()
 
+				// Mark indexing as complete after successful full scan
+				await this.vectorStore.markIndexingComplete()
+
 				this.stateManager.setSystemState("Indexed", t("embeddings:orchestrator.fileWatcherStarted"))
 			}
 		} catch (error: any) {
