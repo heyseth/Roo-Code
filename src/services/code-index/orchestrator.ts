@@ -123,8 +123,15 @@ export class CodeIndexOrchestrator {
 		this._isProcessing = true
 		this.stateManager.setSystemState("Indexing", "Initializing services...")
 
+		// Track whether we successfully connected to Qdrant and started indexing
+		// This helps us decide whether to preserve cache on error
+		let indexingStarted = false
+
 		try {
 			const collectionCreated = await this.vectorStore.initialize()
+
+			// Successfully connected to Qdrant
+			indexingStarted = true
 
 			if (collectionCreated) {
 				await this.cacheManager.clearCacheFile()
@@ -135,11 +142,53 @@ export class CodeIndexOrchestrator {
 			const hasExistingData = await this.vectorStore.hasIndexedData()
 
 			if (hasExistingData && !collectionCreated) {
-				// Collection exists with data - skip the full scan
+				// Collection exists with data - run incremental scan to catch any new/changed files
+				// This handles files added while workspace was closed or Qdrant was inactive
 				console.log(
-					"[CodeIndexOrchestrator] Collection already has indexed data. Skipping full scan and starting file watcher.",
+					"[CodeIndexOrchestrator] Collection already has indexed data. Running incremental scan for new/changed files...",
 				)
-				this.stateManager.setSystemState("Indexing", "Resuming from existing index...")
+				this.stateManager.setSystemState("Indexing", "Checking for new or modified files...")
+
+				let cumulativeBlocksIndexed = 0
+				let cumulativeBlocksFoundSoFar = 0
+				let batchErrors: Error[] = []
+
+				const handleFileParsed = (fileBlockCount: number) => {
+					cumulativeBlocksFoundSoFar += fileBlockCount
+					this.stateManager.reportBlockIndexingProgress(cumulativeBlocksIndexed, cumulativeBlocksFoundSoFar)
+				}
+
+				const handleBlocksIndexed = (indexedCount: number) => {
+					cumulativeBlocksIndexed += indexedCount
+					this.stateManager.reportBlockIndexingProgress(cumulativeBlocksIndexed, cumulativeBlocksFoundSoFar)
+				}
+
+				// Run incremental scan - scanner will skip unchanged files using cache
+				const result = await this.scanner.scanDirectory(
+					this.workspacePath,
+					(batchError: Error) => {
+						console.error(
+							`[CodeIndexOrchestrator] Error during incremental scan batch: ${batchError.message}`,
+							batchError,
+						)
+						batchErrors.push(batchError)
+					},
+					handleBlocksIndexed,
+					handleFileParsed,
+				)
+
+				if (!result) {
+					throw new Error("Incremental scan failed, is scanner initialized?")
+				}
+
+				// If new files were found and indexed, log the results
+				if (cumulativeBlocksFoundSoFar > 0) {
+					console.log(
+						`[CodeIndexOrchestrator] Incremental scan completed: ${cumulativeBlocksIndexed} blocks indexed from new/changed files`,
+					)
+				} else {
+					console.log("[CodeIndexOrchestrator] No new or changed files found")
+				}
 
 				await this._startWatcher()
 
@@ -241,7 +290,20 @@ export class CodeIndexOrchestrator {
 				})
 			}
 
-			await this.cacheManager.clearCacheFile()
+			// Only clear cache if indexing had started (Qdrant connection succeeded)
+			// If we never connected to Qdrant, preserve cache for incremental scan when it comes back
+			if (indexingStarted) {
+				// Indexing started but failed mid-way - clear cache to avoid cache-Qdrant mismatch
+				await this.cacheManager.clearCacheFile()
+				console.log(
+					"[CodeIndexOrchestrator] Indexing failed after starting. Clearing cache to avoid inconsistency.",
+				)
+			} else {
+				// Never connected to Qdrant - preserve cache for future incremental scan
+				console.log(
+					"[CodeIndexOrchestrator] Failed to connect to Qdrant. Preserving cache for future incremental scan.",
+				)
+			}
 
 			this.stateManager.setSystemState(
 				"Error",
