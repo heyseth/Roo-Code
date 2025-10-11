@@ -37,6 +37,8 @@ export class DiffViewProvider {
 	private streamedLines: string[] = []
 	private preDiagnostics: [vscode.Uri, vscode.Diagnostic[]][] = []
 	private taskRef: WeakRef<Task>
+	private originalViewportRanges?: readonly vscode.Range[]
+	private originalViewColumn?: vscode.ViewColumn
 
 	constructor(
 		private cwd: string,
@@ -82,9 +84,22 @@ export class DiffViewProvider {
 			await fs.writeFile(absolutePath, "")
 		}
 
-		// If the file was already open, close it (must happen after showing the
-		// diff view since if it's the only tab the column will close).
+		// If the file was already open, capture its viewport position before closing it
 		this.documentWasOpen = false
+		this.originalViewportRanges = undefined
+		this.originalViewColumn = undefined
+
+		// Find the editor for this file to capture viewport state
+		const existingEditor = vscode.window.visibleTextEditors.find((editor) =>
+			arePathsEqual(editor.document.uri.fsPath, absolutePath),
+		)
+
+		if (existingEditor) {
+			// Capture the exact viewport position before closing
+			this.originalViewportRanges = existingEditor.visibleRanges
+			this.originalViewColumn = existingEditor.viewColumn
+			this.documentWasOpen = true
+		}
 
 		// Close the tab if it's open (it's already saved above).
 		const tabs = vscode.window.tabGroups.all
@@ -98,7 +113,6 @@ export class DiffViewProvider {
 			if (!tab.isDirty) {
 				await vscode.window.tabGroups.close(tab)
 			}
-			this.documentWasOpen = true
 		}
 
 		this.activeDiffEditor = await this.openDiffEditor()
@@ -207,8 +221,35 @@ export class DiffViewProvider {
 			await updatedDocument.save()
 		}
 
-		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), { preview: false, preserveFocus: true })
+		// Show the document in the editor
+		const showOptions: vscode.TextDocumentShowOptions = {
+			preview: false,
+			preserveFocus: true,
+			viewColumn: this.originalViewColumn,
+		}
+
+		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), showOptions)
 		await this.closeAllDiffViews()
+
+		// Restore exact viewport position if the file was previously open
+		if (this.documentWasOpen && this.originalViewportRanges && this.originalViewportRanges.length > 0) {
+			// Find the editor after closing diff views
+			const restoredEditor = vscode.window.visibleTextEditors.find((editor) =>
+				arePathsEqual(editor.document.uri.fsPath, absolutePath),
+			)
+			if (restoredEditor) {
+				// Restore the exact viewport by revealing a range in the middle of the original viewport
+				// This approach is more reliable than AtTop which can have padding
+				const originalRange = this.originalViewportRanges[0]
+				const middleLine = Math.floor((originalRange.start.line + originalRange.end.line) / 2)
+
+				// First reveal the middle line in center to get close to the original position
+				restoredEditor.revealRange(
+					new vscode.Range(middleLine, 0, middleLine, 0),
+					vscode.TextEditorRevealType.InCenter,
+				)
+			}
+		}
 
 		// Getting diagnostics before and after the file edit is a better approach than
 		// automatically tracking problems in real-time. This method ensures we only
@@ -405,10 +446,29 @@ export class DiffViewProvider {
 			await updatedDocument.save()
 
 			if (this.documentWasOpen) {
+				// Show the document in the editor
 				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
 					preview: false,
 					preserveFocus: true,
+					viewColumn: this.originalViewColumn,
 				})
+
+				// Restore exact viewport position if captured
+				if (this.originalViewportRanges && this.originalViewportRanges.length > 0) {
+					const restoredEditor = vscode.window.visibleTextEditors.find((editor) =>
+						arePathsEqual(editor.document.uri.fsPath, absolutePath),
+					)
+					if (restoredEditor) {
+						// Restore the exact viewport by revealing a range in the middle of the original viewport
+						const originalRange = this.originalViewportRanges[0]
+						const middleLine = Math.floor((originalRange.start.line + originalRange.end.line) / 2)
+
+						restoredEditor.revealRange(
+							new vscode.Range(middleLine, 0, middleLine, 0),
+							vscode.TextEditorRevealType.InCenter,
+						)
+					}
+				}
 			}
 
 			await this.closeAllDiffViews()
@@ -627,6 +687,8 @@ export class DiffViewProvider {
 		this.activeLineController = undefined
 		this.streamedLines = []
 		this.preDiagnostics = []
+		this.originalViewportRanges = undefined
+		this.originalViewColumn = undefined
 	}
 
 	/**
@@ -654,6 +716,14 @@ export class DiffViewProvider {
 		// Get diagnostics before editing the file
 		this.preDiagnostics = vscode.languages.getDiagnostics()
 
+		// Check if the file is already open in an editor and capture viewport position
+		const existingEditor = vscode.window.visibleTextEditors.find((editor) =>
+			arePathsEqual(editor.document.uri.fsPath, absolutePath),
+		)
+		const shouldPreserveViewport = existingEditor !== undefined
+		const savedViewState = shouldPreserveViewport ? existingEditor.visibleRanges : undefined
+		const savedViewColumn = existingEditor?.viewColumn
+
 		// Write the content directly to the file
 		await createDirectoriesForFile(absolutePath)
 		await fs.writeFile(absolutePath, content, "utf-8")
@@ -661,11 +731,38 @@ export class DiffViewProvider {
 		// Open the document to ensure diagnostics are loaded
 		// When openFile is false (PREVENT_FOCUS_DISRUPTION enabled), we only open in memory
 		if (openFile) {
-			// Show the document in the editor
-			await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
-				preview: false,
-				preserveFocus: true,
-			})
+			if (shouldPreserveViewport) {
+				// File was already open - reopen the document to refresh it
+				const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath))
+				await vscode.window.showTextDocument(doc, {
+					preview: false,
+					preserveFocus: true,
+					viewColumn: savedViewColumn,
+				})
+
+				// Restore viewport position - use a small delay to ensure document is fully loaded
+				setTimeout(() => {
+					const restoredEditor = vscode.window.visibleTextEditors.find((editor) =>
+						arePathsEqual(editor.document.uri.fsPath, absolutePath),
+					)
+					if (restoredEditor && savedViewState && savedViewState.length > 0) {
+						// Restore the exact viewport by revealing a range in the middle of the original viewport
+						const originalRange = savedViewState[0]
+						const middleLine = Math.floor((originalRange.start.line + originalRange.end.line) / 2)
+
+						restoredEditor.revealRange(
+							new vscode.Range(middleLine, 0, middleLine, 0),
+							vscode.TextEditorRevealType.InCenter,
+						)
+					}
+				}, 50)
+			} else {
+				// File wasn't open - show it normally
+				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
+					preview: false,
+					preserveFocus: true,
+				})
+			}
 		} else {
 			// Just open the document in memory to trigger diagnostics without showing it
 			const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath))
