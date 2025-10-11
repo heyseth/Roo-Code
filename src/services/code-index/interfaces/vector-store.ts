@@ -71,9 +71,15 @@ export interface IVectorStore {
 
 	/**
 	 * Marks the indexing process as complete by storing metadata
-	 * Should be called after a successful full workspace scan
+	 * Should be called after a successful full workspace scan or incremental scan
 	 */
 	markIndexingComplete(): Promise<void>
+
+	/**
+	 * Marks the indexing process as incomplete by storing metadata
+	 * Should be called at the start of indexing to indicate work in progress
+	 */
+	markIndexingIncomplete(): Promise<void>
 }
 
 export interface VectorStoreSearchResult {

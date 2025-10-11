@@ -149,6 +149,9 @@ export class CodeIndexOrchestrator {
 				)
 				this.stateManager.setSystemState("Indexing", "Checking for new or modified files...")
 
+				// Mark as incomplete at the start of incremental scan
+				await this.vectorStore.markIndexingIncomplete()
+
 				let cumulativeBlocksIndexed = 0
 				let cumulativeBlocksFoundSoFar = 0
 				let batchErrors: Error[] = []
@@ -192,10 +195,16 @@ export class CodeIndexOrchestrator {
 
 				await this._startWatcher()
 
+				// Mark indexing as complete after successful incremental scan
+				await this.vectorStore.markIndexingComplete()
+
 				this.stateManager.setSystemState("Indexed", t("embeddings:orchestrator.fileWatcherStarted"))
 			} else {
 				// No existing data or collection was just created - do a full scan
 				this.stateManager.setSystemState("Indexing", "Services ready. Starting workspace scan...")
+
+				// Mark as incomplete at the start of full scan
+				await this.vectorStore.markIndexingIncomplete()
 
 				let cumulativeBlocksIndexed = 0
 				let cumulativeBlocksFoundSoFar = 0

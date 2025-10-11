@@ -567,15 +567,23 @@ export class QdrantVectorStore implements IVectorStore {
 			}
 
 			// Check if the indexing completion marker exists
-			// This ensures we don't return true for partially indexed collections
 			// Use a deterministic UUID generated from a constant string
 			const metadataId = uuidv5("__indexing_metadata__", QDRANT_CODE_BLOCK_NAMESPACE)
 			const metadataPoints = await this.client.retrieve(this.collectionName, {
 				ids: [metadataId],
 			})
 
-			// Return true only if the completion marker exists and is marked as complete
-			return metadataPoints.length > 0 && metadataPoints[0].payload?.indexing_complete === true
+			// If marker exists, use it to determine completion status
+			if (metadataPoints.length > 0) {
+				return metadataPoints[0].payload?.indexing_complete === true
+			}
+
+			// Backward compatibility: No marker exists (old index or pre-marker version)
+			// Fall back to old logic - assume complete if collection has points
+			console.log(
+				"[QdrantVectorStore] No indexing metadata marker found. Using backward compatibility mode (checking points_count > 0).",
+			)
+			return pointsCount > 0
 		} catch (error) {
 			console.warn("[QdrantVectorStore] Failed to check if collection has data:", error)
 			return false
@@ -584,7 +592,7 @@ export class QdrantVectorStore implements IVectorStore {
 
 	/**
 	 * Marks the indexing process as complete by storing metadata
-	 * Should be called after a successful full workspace scan
+	 * Should be called after a successful full workspace scan or incremental scan
 	 */
 	async markIndexingComplete(): Promise<void> {
 		try {
@@ -609,6 +617,37 @@ export class QdrantVectorStore implements IVectorStore {
 			console.log("[QdrantVectorStore] Marked indexing as complete")
 		} catch (error) {
 			console.error("[QdrantVectorStore] Failed to mark indexing as complete:", error)
+			throw error
+		}
+	}
+
+	/**
+	 * Marks the indexing process as incomplete by storing metadata
+	 * Should be called at the start of indexing to indicate work in progress
+	 */
+	async markIndexingIncomplete(): Promise<void> {
+		try {
+			// Create a metadata point with a deterministic UUID to mark indexing as incomplete
+			// Use uuidv5 to generate a consistent UUID from a constant string
+			const metadataId = uuidv5("__indexing_metadata__", QDRANT_CODE_BLOCK_NAMESPACE)
+
+			await this.client.upsert(this.collectionName, {
+				points: [
+					{
+						id: metadataId,
+						vector: new Array(this.vectorSize).fill(0),
+						payload: {
+							type: "metadata",
+							indexing_complete: false,
+							started_at: Date.now(),
+						},
+					},
+				],
+				wait: true,
+			})
+			console.log("[QdrantVectorStore] Marked indexing as incomplete (in progress)")
+		} catch (error) {
+			console.error("[QdrantVectorStore] Failed to mark indexing as incomplete:", error)
 			throw error
 		}
 	}
