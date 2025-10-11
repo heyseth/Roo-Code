@@ -734,28 +734,20 @@ export class DiffViewProvider {
 			if (shouldPreserveViewport) {
 				// File was already open - reopen the document to refresh it
 				const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(absolutePath))
-				await vscode.window.showTextDocument(doc, {
+				const restoredEditor = await vscode.window.showTextDocument(doc, {
 					preview: false,
 					preserveFocus: true,
 					viewColumn: savedViewColumn,
 				})
-
-				// Restore viewport position - use a small delay to ensure document is fully loaded
-				setTimeout(() => {
-					const restoredEditor = vscode.window.visibleTextEditors.find((editor) =>
-						arePathsEqual(editor.document.uri.fsPath, absolutePath),
+				// Restore viewport position immediately using the editor reference
+				if (savedViewState && savedViewState.length > 0) {
+					const originalRange = savedViewState[0]
+					const middleLine = Math.floor((originalRange.start.line + originalRange.end.line) / 2)
+					restoredEditor.revealRange(
+						new vscode.Range(middleLine, 0, middleLine, 0),
+						vscode.TextEditorRevealType.InCenter,
 					)
-					if (restoredEditor && savedViewState && savedViewState.length > 0) {
-						// Restore the exact viewport by revealing a range in the middle of the original viewport
-						const originalRange = savedViewState[0]
-						const middleLine = Math.floor((originalRange.start.line + originalRange.end.line) / 2)
-
-						restoredEditor.revealRange(
-							new vscode.Range(middleLine, 0, middleLine, 0),
-							vscode.TextEditorRevealType.InCenter,
-						)
-					}
-				}, 50)
+				}
 			} else {
 				// File wasn't open - show it normally
 				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
