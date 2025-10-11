@@ -228,27 +228,19 @@ export class DiffViewProvider {
 			viewColumn: this.originalViewColumn,
 		}
 
-		await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), showOptions)
+		const restoredEditor = await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), showOptions)
 		await this.closeAllDiffViews()
-
 		// Restore exact viewport position if the file was previously open
 		if (this.documentWasOpen && this.originalViewportRanges && this.originalViewportRanges.length > 0) {
-			// Find the editor after closing diff views
-			const restoredEditor = vscode.window.visibleTextEditors.find((editor) =>
-				arePathsEqual(editor.document.uri.fsPath, absolutePath),
+			// Restore the exact viewport by revealing a range in the middle of the original viewport
+			// This approach is more reliable than AtTop which can have padding
+			const originalRange = this.originalViewportRanges[0]
+			const middleLine = Math.floor((originalRange.start.line + originalRange.end.line) / 2)
+			// First reveal the middle line in center to get close to the original position
+			restoredEditor.revealRange(
+				new vscode.Range(middleLine, 0, middleLine, 0),
+				vscode.TextEditorRevealType.InCenter,
 			)
-			if (restoredEditor) {
-				// Restore the exact viewport by revealing a range in the middle of the original viewport
-				// This approach is more reliable than AtTop which can have padding
-				const originalRange = this.originalViewportRanges[0]
-				const middleLine = Math.floor((originalRange.start.line + originalRange.end.line) / 2)
-
-				// First reveal the middle line in center to get close to the original position
-				restoredEditor.revealRange(
-					new vscode.Range(middleLine, 0, middleLine, 0),
-					vscode.TextEditorRevealType.InCenter,
-				)
-			}
 		}
 
 		// Getting diagnostics before and after the file edit is a better approach than
@@ -447,27 +439,20 @@ export class DiffViewProvider {
 
 			if (this.documentWasOpen) {
 				// Show the document in the editor
-				await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
+				const restoredEditor = await vscode.window.showTextDocument(vscode.Uri.file(absolutePath), {
 					preview: false,
 					preserveFocus: true,
 					viewColumn: this.originalViewColumn,
 				})
-
 				// Restore exact viewport position if captured
 				if (this.originalViewportRanges && this.originalViewportRanges.length > 0) {
-					const restoredEditor = vscode.window.visibleTextEditors.find((editor) =>
-						arePathsEqual(editor.document.uri.fsPath, absolutePath),
+					// Restore the exact viewport by revealing a range in the middle of the original viewport
+					const originalRange = this.originalViewportRanges[0]
+					const middleLine = Math.floor((originalRange.start.line + originalRange.end.line) / 2)
+					restoredEditor.revealRange(
+						new vscode.Range(middleLine, 0, middleLine, 0),
+						vscode.TextEditorRevealType.InCenter,
 					)
-					if (restoredEditor) {
-						// Restore the exact viewport by revealing a range in the middle of the original viewport
-						const originalRange = this.originalViewportRanges[0]
-						const middleLine = Math.floor((originalRange.start.line + originalRange.end.line) / 2)
-
-						restoredEditor.revealRange(
-							new vscode.Range(middleLine, 0, middleLine, 0),
-							vscode.TextEditorRevealType.InCenter,
-						)
-					}
 				}
 			}
 
