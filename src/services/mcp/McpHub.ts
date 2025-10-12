@@ -151,6 +151,7 @@ export class McpHub {
 	isConnecting: boolean = false
 	private refCount: number = 0 // Reference counter for active clients
 	private configChangeDebounceTimers: Map<string, NodeJS.Timeout> = new Map()
+	private isProgrammaticUpdate: boolean = false
 
 	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
@@ -278,6 +279,11 @@ export class McpHub {
 	 * Debounced wrapper for handling config file changes
 	 */
 	private debounceConfigChange(filePath: string, source: "global" | "project"): void {
+		// Skip processing if this is a programmatic update to prevent unnecessary server restarts
+		if (this.isProgrammaticUpdate) {
+			return
+		}
+
 		const key = `${source}-${filePath}`
 
 		// Clear existing timer if any
@@ -1463,7 +1469,15 @@ export class McpHub {
 			mcpServers: config.mcpServers,
 		}
 
-		await fs.writeFile(configPath, JSON.stringify(updatedConfig, null, 2))
+		// Set flag to prevent file watcher from triggering server restart
+		this.isProgrammaticUpdate = true
+		try {
+			await fs.writeFile(configPath, JSON.stringify(updatedConfig, null, 2))
+			// Delay longer than debounce timer (500ms) to ensure watcher event is processed while flag is set
+			await delay(600)
+		} finally {
+			this.isProgrammaticUpdate = false
+		}
 	}
 
 	public async updateServerTimeout(
@@ -1686,7 +1700,15 @@ export class McpHub {
 			targetList.splice(toolIndex, 1)
 		}
 
-		await fs.writeFile(normalizedPath, JSON.stringify(config, null, 2))
+		// Set flag to prevent file watcher from triggering server restart
+		this.isProgrammaticUpdate = true
+		try {
+			await fs.writeFile(normalizedPath, JSON.stringify(config, null, 2))
+			// Delay longer than debounce timer (500ms) to ensure watcher event is processed while flag is set
+			await delay(600)
+		} finally {
+			this.isProgrammaticUpdate = false
+		}
 
 		if (connection) {
 			connection.server.tools = await this.fetchToolsList(serverName, source)
@@ -1795,6 +1817,9 @@ export class McpHub {
 			clearTimeout(timer)
 		}
 		this.configChangeDebounceTimers.clear()
+
+		// Reset programmatic update flag
+		this.isProgrammaticUpdate = false
 
 		this.removeAllFileWatchers()
 		for (const connection of this.connections) {
