@@ -153,6 +153,7 @@ export class McpHub {
 	private refCount: number = 0 // Reference counter for active clients
 	private configChangeDebounceTimers: Map<string, NodeJS.Timeout> = new Map()
 	private isProgrammaticUpdate: boolean = false
+	private flagResetTimer?: NodeJS.Timeout
 
 	constructor(provider: ClineProvider) {
 		this.providerRef = new WeakRef(provider)
@@ -1525,13 +1526,19 @@ export class McpHub {
 		}
 
 		// Set flag to prevent file watcher from triggering server restart
+		if (this.flagResetTimer) {
+			clearTimeout(this.flagResetTimer)
+		}
 		this.isProgrammaticUpdate = true
-		await safeWriteJson(configPath, updatedConfig)
-
-		// Reset flag after watcher debounce period (non-blocking)
-		delay(600).then(() => {
-			this.isProgrammaticUpdate = false
-		})
+		try {
+			await safeWriteJson(configPath, updatedConfig)
+		} finally {
+			// Reset flag after watcher debounce period (non-blocking)
+			this.flagResetTimer = setTimeout(() => {
+				this.isProgrammaticUpdate = false
+				this.flagResetTimer = undefined
+			}, 600)
+		}
 	}
 
 	public async updateServerTimeout(
@@ -1755,13 +1762,19 @@ export class McpHub {
 		}
 
 		// Set flag to prevent file watcher from triggering server restart
+		if (this.flagResetTimer) {
+			clearTimeout(this.flagResetTimer)
+		}
 		this.isProgrammaticUpdate = true
-		await safeWriteJson(normalizedPath, config)
-
-		// Reset flag after watcher debounce period (non-blocking)
-		delay(600).then(() => {
-			this.isProgrammaticUpdate = false
-		})
+		try {
+			await safeWriteJson(normalizedPath, config)
+		} finally {
+			// Reset flag after watcher debounce period (non-blocking)
+			this.flagResetTimer = setTimeout(() => {
+				this.isProgrammaticUpdate = false
+				this.flagResetTimer = undefined
+			}, 600)
+		}
 
 		if (connection) {
 			connection.server.tools = await this.fetchToolsList(serverName, source)
@@ -1871,7 +1884,11 @@ export class McpHub {
 		}
 		this.configChangeDebounceTimers.clear()
 
-		// Reset programmatic update flag
+		// Clear flag reset timer and reset programmatic update flag
+		if (this.flagResetTimer) {
+			clearTimeout(this.flagResetTimer)
+			this.flagResetTimer = undefined
+		}
 		this.isProgrammaticUpdate = false
 
 		this.removeAllFileWatchers()
