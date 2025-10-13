@@ -625,7 +625,7 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 										</span>
 										{getCurrentMode() && (
 											<span className="text-[10px] px-1 py-0.5 rounded bg-vscode-badge-background text-vscode-badge-foreground">
-												{getCurrentMode()?.source === "project" ? "project" : "global"}
+												{getCurrentMode()?.source || "global"}
 											</span>
 										)}
 									</div>
@@ -690,7 +690,7 @@ const ModesView = ({ onDone }: ModesViewProps) => {
 																	{modeConfig.name}
 																</span>
 																<span className="text-[10px] px-1 py-0.5 rounded bg-vscode-badge-background text-vscode-badge-foreground">
-																	{modeConfig.source === "project" ? "project" : "global"}
+																	{modeConfig.source || "global"}
 																</span>
 															</div>
 															<span

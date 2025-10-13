@@ -272,7 +272,7 @@ export const ModeSelector = ({
 												<div className="flex items-center gap-1.5">
 													<span className="font-bold truncate">{mode.name}</span>
 													<span className="text-[10px] px-1 py-0.5 rounded bg-vscode-badge-background text-vscode-badge-foreground">
-														{mode.source === "project" ? "project" : "global"}
+														{mode.source || "global"}
 													</span>
 												</div>
 												{mode.description && (
