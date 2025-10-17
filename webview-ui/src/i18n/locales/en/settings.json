@@ -529,7 +529,31 @@
 		"tts": {
 			"label": "Enable text-to-speech",
 			"description": "When enabled, Roo will read aloud its responses using text-to-speech.",
-			"speedLabel": "Speed"
+			"speedLabel": "Speed",
+			"providerLabel": "TTS Provider",
+			"providerDescription": "Select which text-to-speech service to use",
+			"voiceLabel": "Voice",
+			"voiceDescription": "Select a voice for text-to-speech",
+			"voicePlaceholder": "Select a voice",
+			"loadingVoices": "Loading voices...",
+			"noVoicesAvailable": "No voices available",
+			"providers": {
+				"native": "System (Native)",
+				"google-cloud": "Google Cloud",
+				"azure": "Microsoft Azure"
+			},
+			"googleCloud": {
+				"apiKeyLabel": "Google Cloud API Key",
+				"apiKeyPlaceholder": "Enter your Google Cloud API key",
+				"getApiKey": "Get Google Cloud API Key"
+			},
+			"azure": {
+				"apiKeyLabel": "Azure Speech API Key",
+				"apiKeyPlaceholder": "Enter your Azure Speech API key",
+				"regionLabel": "Azure Region",
+				"regionPlaceholder": "e.g., eastus, westus2",
+				"getApiKey": "Get Azure Speech API Key"
+			}
 		}
 	},
 	"contextManagement": {

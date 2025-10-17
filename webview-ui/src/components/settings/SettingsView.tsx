@@ -162,6 +162,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		soundEnabled,
 		ttsEnabled,
 		ttsSpeed,
+		ttsProvider,
+		ttsVoice,
+		azureRegion,
 		soundVolume,
 		telemetrySetting,
 		terminalOutputLineLimit,
@@ -721,6 +724,9 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 						<NotificationSettings
 							ttsEnabled={ttsEnabled}
 							ttsSpeed={ttsSpeed}
+							ttsProvider={ttsProvider}
+							ttsVoice={ttsVoice}
+							azureRegion={azureRegion}
 							soundEnabled={soundEnabled}
 							soundVolume={soundVolume}
 							setCachedStateField={setCachedStateField}
