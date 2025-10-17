@@ -71,7 +71,14 @@ import type { IndexProgressUpdate } from "../../services/code-index/interfaces/m
 import { MdmService } from "../../services/mdm/MdmService"
 
 import { fileExistsAtPath } from "../../utils/fs"
-import { setTtsEnabled, setTtsSpeed } from "../../utils/tts"
+import {
+	setTtsEnabled,
+	setTtsSpeed,
+	setTtsProvider,
+	setTtsVoice,
+	initializeTtsManager,
+	updateTtsCredentials,
+} from "../../utils/tts"
 import { getWorkspaceGitInfo } from "../../utils/git"
 import { getWorkspacePath } from "../../utils/path"
 import { OrganizationAllowListViolationError } from "../../utils/errors"
@@ -750,12 +757,36 @@ export class ClineProvider
 			},
 		)
 
-		this.getState().then(({ ttsEnabled }) => {
-			setTtsEnabled(ttsEnabled ?? false)
-		})
+		// Initialize TTS system
+		this.getState().then(async (state) => {
+			// Set basic TTS settings
+			setTtsEnabled(state.ttsEnabled ?? false)
+			setTtsSpeed(state.ttsSpeed ?? 1)
 
-		this.getState().then(({ ttsSpeed }) => {
-			setTtsSpeed(ttsSpeed ?? 1)
+			// Initialize TTS manager with credentials from secret storage
+			const googleCloudApiKey = await this.contextProxy.getSecret("googleCloudTtsApiKey")
+			const azureTtsApiKey = await this.contextProxy.getSecret("azureTtsApiKey")
+			const azureRegion = state.azureRegion
+
+			await initializeTtsManager({
+				googleCloudApiKey: googleCloudApiKey || undefined,
+				azureApiKey: azureTtsApiKey || undefined,
+				azureRegion: azureRegion || undefined,
+			})
+
+			// Set the active provider if configured
+			if (state.ttsProvider) {
+				try {
+					await setTtsProvider(state.ttsProvider)
+				} catch (error) {
+					console.error("Failed to set TTS provider on init:", error)
+				}
+			}
+
+			// Set the voice if configured
+			if (state.ttsVoice) {
+				setTtsVoice(state.ttsVoice)
+			}
 		})
 
 		// Set up webview options with proper resource roots

@@ -96,6 +96,13 @@ export interface WebviewMessage {
 		| "soundEnabled"
 		| "ttsEnabled"
 		| "ttsSpeed"
+		| "ttsProvider"
+		| "ttsVoice"
+		| "azureRegion"
+		| "getTtsVoices"
+		| "validateTtsProvider"
+		| "googleCloudTtsApiKey"
+		| "azureTtsApiKey"
 		| "soundVolume"
 		| "diffEnabled"
 		| "enableCheckpoints"
@@ -242,6 +249,10 @@ export interface WebviewMessage {
 	value?: number
 	commands?: string[]
 	audioType?: AudioType
+	ttsProvider?: "native" | "google-cloud" | "azure"
+	voices?: Array<{ id: string; name: string; language: string; gender?: string; provider: string }>
+	error?: string
+	region?: string
 	serverName?: string
 	toolName?: string
 	alwaysAllow?: boolean

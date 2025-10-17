@@ -100,6 +100,10 @@ export interface ExtensionMessage {
 		| "remoteBrowserEnabled"
 		| "ttsStart"
 		| "ttsStop"
+		| "ttsVoices"
+		| "ttsVoicesError"
+		| "ttsProviderValidated"
+		| "ttsProviderValidationError"
 		| "maxReadFileLine"
 		| "fileSearchResults"
 		| "toggleApiConfigPin"
@@ -205,6 +209,8 @@ export interface ExtensionMessage {
 	queuedMessages?: QueuedMessage[]
 	list?: string[] // For dismissedUpsells
 	organizationId?: string | null // For organizationSwitchResult
+	voices?: Array<{ id: string; name: string; language: string; gender?: string; provider: string }> // For ttsVoices
+	ttsProvider?: "native" | "google-cloud" | "azure" // For ttsProviderValidated/Error
 }
 
 export type ExtensionState = Pick<
@@ -246,6 +252,9 @@ export type ExtensionState = Pick<
 	// | "enableCheckpoints" // Optional in GlobalSettings, required here.
 	| "ttsEnabled"
 	| "ttsSpeed"
+	| "ttsProvider"
+	| "ttsVoice"
+	| "azureRegion"
 	| "soundEnabled"
 	| "soundVolume"
 	// | "maxOpenTabsContext" // Optional in GlobalSettings, required here.

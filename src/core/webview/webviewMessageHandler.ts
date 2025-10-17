@@ -42,7 +42,20 @@ import { getTheme } from "../../integrations/theme/getTheme"
 import { discoverChromeHostUrl, tryChromeHostUrl } from "../../services/browser/browserDiscovery"
 import { searchWorkspaceFiles } from "../../services/search/file-search"
 import { fileExistsAtPath } from "../../utils/fs"
-import { playTts, setTtsEnabled, setTtsSpeed, stopTts } from "../../utils/tts"
+import {
+	playTts,
+	setTtsEnabled,
+	setTtsSpeed,
+	stopTts,
+	setTtsProvider,
+	setTtsVoice,
+	getTtsVoices,
+	getTtsVoicesForProvider,
+	validateTtsProvider,
+	updateTtsCredentials,
+	initializeTtsManager,
+} from "../../utils/tts"
+import { TtsProviderType } from "../../utils/tts/types"
 import { searchCommits } from "../../utils/git"
 import { exportSettings, importSettingsWithFeedback } from "../config/importExport"
 import { getOpenAiModels } from "../../api/providers/openai"
@@ -69,6 +82,9 @@ export const webviewMessageHandler = async (
 	const getGlobalState = <K extends keyof GlobalState>(key: K) => provider.contextProxy.getValue(key)
 	const updateGlobalState = async <K extends keyof GlobalState>(key: K, value: GlobalState[K]) =>
 		await provider.contextProxy.setValue(key, value)
+	const getSecret = async (key: string) => await provider.contextProxy.getSecret(key as any)
+	const storeSecret = async (key: string, value?: string) =>
+		await provider.contextProxy.storeSecret(key as any, value)
 
 	const getCurrentCwd = () => {
 		return provider.getCurrentTask()?.cwd || provider.cwd
@@ -1252,6 +1268,122 @@ export const webviewMessageHandler = async (
 		case "stopTts":
 			stopTts()
 			break
+		case "ttsProvider": {
+			const ttsProvider = message.ttsProvider
+			if (ttsProvider) {
+				await updateGlobalState("ttsProvider", ttsProvider)
+				try {
+					await setTtsProvider(ttsProvider)
+				} catch (error: any) {
+					console.error("Failed to set TTS provider:", error)
+				}
+				await provider.postStateToWebview()
+			}
+			break
+		}
+		case "ttsVoice": {
+			const ttsVoice = message.text
+			if (ttsVoice) {
+				await updateGlobalState("ttsVoice", ttsVoice)
+				setTtsVoice(ttsVoice)
+				await provider.postStateToWebview()
+			}
+			break
+		}
+		case "azureRegion": {
+			const azureRegion = message.region
+			if (azureRegion) {
+				await updateGlobalState("azureRegion", azureRegion)
+				// Update Azure credentials with the new region
+				const azureApiKey = await getSecret("azureTtsApiKey")
+				if (azureApiKey) {
+					await updateTtsCredentials("azure", {
+						azureApiKey,
+						azureRegion,
+					})
+				}
+				await provider.postStateToWebview()
+			}
+			break
+		}
+		case "getTtsVoices": {
+			try {
+				const providerType = (message.ttsProvider || "native") as TtsProviderType
+				const voices =
+					providerType === "native" ? await getTtsVoices() : await getTtsVoicesForProvider(providerType)
+				await provider.postMessageToWebview({
+					type: "ttsVoices",
+					voices: voices.map((v) => ({
+						id: v.id,
+						name: v.name,
+						language: v.language,
+						gender: v.gender,
+						provider: v.provider,
+					})),
+				})
+			} catch (error: any) {
+				console.error("Failed to get TTS voices:", error)
+				await provider.postMessageToWebview({
+					type: "ttsVoicesError",
+					error: error?.message || "Failed to get voices",
+				})
+			}
+			break
+		}
+		case "validateTtsProvider": {
+			try {
+				const providerType = message.ttsProvider as TtsProviderType
+				if (providerType) {
+					await validateTtsProvider(providerType)
+					await provider.postMessageToWebview({
+						type: "ttsProviderValidated",
+						ttsProvider: providerType,
+					})
+				}
+			} catch (error: any) {
+				console.error("Failed to validate TTS provider:", error)
+				await provider.postMessageToWebview({
+					type: "ttsProviderValidationError",
+					ttsProvider: message.ttsProvider,
+					error: error?.message || "Validation failed",
+				})
+			}
+			break
+		}
+		case "googleCloudTtsApiKey": {
+			const apiKey = message.text
+			if (apiKey) {
+				await storeSecret("googleCloudTtsApiKey", apiKey)
+				// Update the credentials in the TTS manager
+				await updateTtsCredentials("google-cloud", {
+					googleCloudApiKey: apiKey,
+				})
+			} else {
+				// Clear the API key
+				await storeSecret("googleCloudTtsApiKey", undefined)
+			}
+			await provider.postStateToWebview()
+			break
+		}
+		case "azureTtsApiKey": {
+			const apiKey = message.text
+			if (apiKey) {
+				await storeSecret("azureTtsApiKey", apiKey)
+				// Update the credentials in the TTS manager
+				const azureRegion = await getGlobalState("azureRegion")
+				if (azureRegion) {
+					await updateTtsCredentials("azure", {
+						azureApiKey: apiKey,
+						azureRegion,
+					})
+				}
+			} else {
+				// Clear the API key
+				await storeSecret("azureTtsApiKey", undefined)
+			}
+			await provider.postStateToWebview()
+			break
+		}
 		case "diffEnabled":
 			const diffEnabled = message.bool ?? true
 			await updateGlobalState("diffEnabled", diffEnabled)

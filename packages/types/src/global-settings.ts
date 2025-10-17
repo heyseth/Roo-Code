@@ -100,6 +100,9 @@ export const globalSettingsSchema = z.object({
 
 	ttsEnabled: z.boolean().optional(),
 	ttsSpeed: z.number().optional(),
+	ttsProvider: z.enum(["native", "google-cloud", "azure"]).optional(),
+	ttsVoice: z.string().optional(),
+	azureRegion: z.string().optional(),
 	soundEnabled: z.boolean().optional(),
 	soundVolume: z.number().optional(),
 
@@ -211,6 +214,8 @@ export const SECRET_STATE_KEYS = [
 // Global secrets that are part of GlobalSettings (not ProviderSettings)
 export const GLOBAL_SECRET_KEYS = [
 	"openRouterImageApiKey", // For image generation
+	"googleCloudTtsApiKey", // For Google Cloud Text-to-Speech
+	"azureTtsApiKey", // For Azure Text-to-Speech
 ] as const
 
 // Type for the actual secret storage keys
@@ -280,6 +285,7 @@ export const EVALS_SETTINGS: RooCodeSettings = {
 
 	ttsEnabled: false,
 	ttsSpeed: 1,
+	ttsProvider: "native",
 	soundEnabled: false,
 	soundVolume: 0.5,
 
