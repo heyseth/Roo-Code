@@ -1270,23 +1270,38 @@ export const webviewMessageHandler = async (
 			break
 		case "ttsProvider": {
 			const ttsProvider = message.ttsProvider
+			console.log(`[TTS Handler] ttsProvider message received: ${ttsProvider}`)
 			if (ttsProvider) {
+				console.log(`[TTS Handler] Saving ttsProvider to global state: ${ttsProvider}`)
 				await updateGlobalState("ttsProvider", ttsProvider)
 				try {
+					console.log(`[TTS Handler] Calling setTtsProvider with: ${ttsProvider}`)
 					await setTtsProvider(ttsProvider)
+					console.log(`[TTS Handler] setTtsProvider completed successfully`)
 				} catch (error: any) {
-					console.error("Failed to set TTS provider:", error)
+					console.error(`[TTS Handler] Failed to set TTS provider:`, error)
+					console.error(`[TTS Handler] Error details:`, {
+						message: error.message,
+						stack: error.stack,
+					})
 				}
 				await provider.postStateToWebview()
+			} else {
+				console.warn(`[TTS Handler] ttsProvider message received but value is empty`)
 			}
 			break
 		}
 		case "ttsVoice": {
 			const ttsVoice = message.text
+			console.log(`[TTS Handler] ttsVoice message received: ${ttsVoice}`)
 			if (ttsVoice) {
+				console.log(`[TTS Handler] Saving ttsVoice to global state: ${ttsVoice}`)
 				await updateGlobalState("ttsVoice", ttsVoice)
+				console.log(`[TTS Handler] Calling setTtsVoice with: ${ttsVoice}`)
 				setTtsVoice(ttsVoice)
 				await provider.postStateToWebview()
+			} else {
+				console.warn(`[TTS Handler] ttsVoice message received but value is empty`)
 			}
 			break
 		}
@@ -1309,8 +1324,10 @@ export const webviewMessageHandler = async (
 		case "getTtsVoices": {
 			try {
 				const providerType = (message.ttsProvider || "native") as TtsProviderType
+				console.log(`[TTS Handler] getTtsVoices request for provider: ${providerType}`)
 				const voices =
 					providerType === "native" ? await getTtsVoices() : await getTtsVoicesForProvider(providerType)
+				console.log(`[TTS Handler] Retrieved ${voices.length} voices for ${providerType}`)
 				await provider.postMessageToWebview({
 					type: "ttsVoices",
 					voices: voices.map((v) => ({
@@ -1322,7 +1339,12 @@ export const webviewMessageHandler = async (
 					})),
 				})
 			} catch (error: any) {
-				console.error("Failed to get TTS voices:", error)
+				console.error(`[TTS Handler] Failed to get TTS voices:`, error)
+				console.error(`[TTS Handler] Error details:`, {
+					message: error.message,
+					code: error.code,
+					provider: error.provider,
+				})
 				await provider.postMessageToWebview({
 					type: "ttsVoicesError",
 					error: error?.message || "Failed to get voices",
@@ -1352,14 +1374,19 @@ export const webviewMessageHandler = async (
 		}
 		case "googleCloudTtsApiKey": {
 			const apiKey = message.text
+			console.log(`[TTS Handler] googleCloudTtsApiKey message received, API key length: ${apiKey?.length || 0}`)
 			if (apiKey) {
+				console.log(`[TTS Handler] Storing Google Cloud TTS API key in secrets`)
 				await storeSecret("googleCloudTtsApiKey", apiKey)
 				// Update the credentials in the TTS manager
+				console.log(`[TTS Handler] Updating TTS credentials for google-cloud provider`)
 				await updateTtsCredentials("google-cloud", {
 					googleCloudApiKey: apiKey,
 				})
+				console.log(`[TTS Handler] Google Cloud TTS credentials updated successfully`)
 			} else {
 				// Clear the API key
+				console.log(`[TTS Handler] Clearing Google Cloud TTS API key`)
 				await storeSecret("googleCloudTtsApiKey", undefined)
 			}
 			await provider.postStateToWebview()

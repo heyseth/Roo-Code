@@ -768,24 +768,43 @@ export class ClineProvider
 			const azureTtsApiKey = await this.contextProxy.getSecret("azureTtsApiKey")
 			const azureRegion = state.azureRegion
 
+			console.log(`[TTS Init] Initializing TTS manager with credentials:`, {
+				hasGoogleCloudApiKey: !!googleCloudApiKey,
+				hasAzureApiKey: !!azureTtsApiKey,
+				hasAzureRegion: !!azureRegion,
+			})
+
 			await initializeTtsManager({
 				googleCloudApiKey: googleCloudApiKey || undefined,
 				azureApiKey: azureTtsApiKey || undefined,
 				azureRegion: azureRegion || undefined,
 			})
 
+			console.log(`[TTS Init] TTS manager initialized`)
+
 			// Set the active provider if configured
 			if (state.ttsProvider) {
+				console.log(`[TTS Init] Setting active provider from state: ${state.ttsProvider}`)
 				try {
 					await setTtsProvider(state.ttsProvider)
+					console.log(`[TTS Init] Active provider set successfully to: ${state.ttsProvider}`)
 				} catch (error) {
-					console.error("Failed to set TTS provider on init:", error)
+					console.error(`[TTS Init] Failed to set TTS provider on init:`, error)
+					console.error(`[TTS Init] Error details:`, {
+						message: (error as any).message,
+						stack: (error as any).stack,
+					})
 				}
+			} else {
+				console.log(`[TTS Init] No ttsProvider in state, using default (native)`)
 			}
 
 			// Set the voice if configured
 			if (state.ttsVoice) {
+				console.log(`[TTS Init] Setting voice from state: ${state.ttsVoice}`)
 				setTtsVoice(state.ttsVoice)
+			} else {
+				console.log(`[TTS Init] No ttsVoice in state`)
 			}
 		})
 

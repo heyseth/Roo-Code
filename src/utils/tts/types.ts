@@ -10,6 +10,7 @@ export interface TtsVoice {
 	language: string
 	gender?: "male" | "female" | "neutral"
 	provider: TtsProviderType
+	model?: string // For Google Cloud voices that require a model specification
 }
 
 export interface TtsSpeakOptions {
