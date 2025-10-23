@@ -59,7 +59,7 @@ const CodeAccordian = ({
 					) : (
 						<>
 							{path?.startsWith(".") && <span>.</span>}
-							<StandardTooltip content={path} side="top" align="start" className="text-wrap max-w-[min(300px,100vw)]">
+							<StandardTooltip content={removeLeadingNonAlphanumeric(path ?? "") + "\u200E"} side="top" align="start" className="text-wrap max-w-[min(300px,100vw)]">
 								<span className="whitespace-nowrap overflow-hidden text-ellipsis text-left mr-2 rtl">
 									{removeLeadingNonAlphanumeric(path ?? "") + "\u200E"}
 								</span>

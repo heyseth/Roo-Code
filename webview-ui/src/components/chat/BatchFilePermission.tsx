@@ -36,7 +36,7 @@ export const BatchFilePermission = memo(({ files = [], onPermissionResponse, ts 
 								<ToolUseBlockHeader
 									onClick={() => vscode.postMessage({ type: "openFile", text: file.content })}>
 									{file.path?.startsWith(".") && <span>.</span>}
-									<StandardTooltip content={file.path} side="top" align="start" className="text-wrap max-w-[min(300px,100vw)]">
+									<StandardTooltip content={removeLeadingNonAlphanumeric(file.path ?? "") + "\u200E" + (file.lineSnippet ? ` ${file.lineSnippet}` : "")} side="top" align="start" className="text-wrap max-w-[min(300px,100vw)]">
 										<span className="whitespace-nowrap overflow-hidden text-ellipsis text-left mr-2 rtl">
 											{removeLeadingNonAlphanumeric(file.path ?? "") + "\u200E"}
 											{file.lineSnippet && ` ${file.lineSnippet}`}

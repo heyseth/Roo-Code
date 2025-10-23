@@ -601,7 +601,7 @@ export const ChatRowContent = ({
 									className="group"
 									onClick={() => vscode.postMessage({ type: "openFile", text: tool.content })}>
 									{tool.path?.startsWith(".") && <span>.</span>}
-									<StandardTooltip content={tool.path} side="top" align="start" className="text-wrap max-w-[min(300px,100vw)]">
+									<StandardTooltip content={removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E" + (tool.reason || "")} side="top" align="start" className="text-wrap max-w-[min(300px,100vw)]">
 										<span className="whitespace-nowrap overflow-hidden text-ellipsis text-left mr-2 rtl">
 											{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
 											{tool.reason}
