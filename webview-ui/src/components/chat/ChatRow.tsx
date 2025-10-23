@@ -63,6 +63,7 @@ import {
 	MessageCircle,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { StandardTooltip } from "../ui/standard-tooltip"
 
 interface ChatRowProps {
 	message: ClineMessage
@@ -600,10 +601,12 @@ export const ChatRowContent = ({
 									className="group"
 									onClick={() => vscode.postMessage({ type: "openFile", text: tool.content })}>
 									{tool.path?.startsWith(".") && <span>.</span>}
-									<span className="whitespace-nowrap overflow-hidden text-ellipsis text-left mr-2 rtl">
-										{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
-										{tool.reason}
-									</span>
+									<StandardTooltip content={tool.path} side="top" align="start" className="text-wrap max-w-[min(300px,100vw)]">
+										<span className="whitespace-nowrap overflow-hidden text-ellipsis text-left mr-2 rtl">
+											{removeLeadingNonAlphanumeric(tool.path ?? "") + "\u200E"}
+											{tool.reason}
+										</span>
+									</StandardTooltip>
 									<div style={{ flexGrow: 1 }}></div>
 									<SquareArrowOutUpRight
 										className="w-4 shrink-0 codicon codicon-link-external opacity-0 group-hover:opacity-100 transition-opacity"
