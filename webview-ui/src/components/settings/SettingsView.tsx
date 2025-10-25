@@ -165,6 +165,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		ttsProvider,
 		ttsVoice,
 		azureRegion,
+		googleCloudTtsApiKey,
+		azureTtsApiKey,
 		soundVolume,
 		telemetrySetting,
 		terminalOutputLineLimit,
@@ -345,6 +347,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "ttsSpeed", value: ttsSpeed })
 			vscode.postMessage({ type: "ttsProvider", ttsProvider: ttsProvider })
 			vscode.postMessage({ type: "ttsVoice", text: ttsVoice })
+			vscode.postMessage({ type: "azureRegion", region: azureRegion })
 			vscode.postMessage({ type: "soundVolume", value: soundVolume })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
 			vscode.postMessage({ type: "enableCheckpoints", bool: enableCheckpoints })
@@ -729,6 +732,8 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 							ttsProvider={ttsProvider}
 							ttsVoice={ttsVoice}
 							azureRegion={azureRegion}
+							googleCloudTtsApiKey={googleCloudTtsApiKey}
+							azureTtsApiKey={azureTtsApiKey}
 							soundEnabled={soundEnabled}
 							soundVolume={soundVolume}
 							setCachedStateField={setCachedStateField}

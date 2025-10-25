@@ -19,6 +19,8 @@ type NotificationSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	ttsProvider?: TtsProviderType
 	ttsVoice?: string
 	azureRegion?: string
+	googleCloudTtsApiKey?: string
+	azureTtsApiKey?: string
 	soundEnabled?: boolean
 	soundVolume?: number
 	setCachedStateField: SetCachedStateField<
@@ -32,6 +34,8 @@ export const NotificationSettings = ({
 	ttsProvider = "native",
 	ttsVoice,
 	azureRegion,
+	googleCloudTtsApiKey,
+	azureTtsApiKey,
 	soundEnabled,
 	soundVolume,
 	setCachedStateField,
@@ -42,8 +46,14 @@ export const NotificationSettings = ({
 		Array<{ id: string; name: string; language: string; gender?: string; provider: string }>
 	>([])
 	const [loadingVoices, setLoadingVoices] = useState(false)
-	const [googleCloudApiKey, setGoogleCloudApiKey] = useState("")
-	const [azureApiKey, setAzureApiKey] = useState("")
+	const [googleCloudApiKey, setGoogleCloudApiKey] = useState(googleCloudTtsApiKey || "")
+	const [azureApiKey, setAzureApiKey] = useState(azureTtsApiKey || "")
+
+	// Update local state when props change (e.g., when loading from saved state)
+	useEffect(() => {
+		setGoogleCloudApiKey(googleCloudTtsApiKey || "")
+		setAzureApiKey(azureTtsApiKey || "")
+	}, [googleCloudTtsApiKey, azureTtsApiKey])
 
 	// Load voices when provider changes or when provider is configured
 	useEffect(() => {

@@ -1796,6 +1796,9 @@ export class ClineProvider
 			soundEnabled,
 			ttsEnabled,
 			ttsSpeed,
+			ttsProvider,
+			ttsVoice,
+			azureRegion,
 			diffEnabled,
 			enableCheckpoints,
 			taskHistory,
@@ -1864,6 +1867,8 @@ export class ClineProvider
 			openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel,
 			openRouterUseMiddleOutTransform,
+			googleCloudTtsApiKey,
+			azureTtsApiKey,
 			featureRoomoteControlEnabled,
 		} = await this.getState()
 
@@ -1919,6 +1924,9 @@ export class ClineProvider
 			soundEnabled: soundEnabled ?? false,
 			ttsEnabled: ttsEnabled ?? false,
 			ttsSpeed: ttsSpeed ?? 1.0,
+			ttsProvider: ttsProvider ?? "native",
+			ttsVoice: ttsVoice,
+			azureRegion: azureRegion,
 			diffEnabled: diffEnabled ?? true,
 			enableCheckpoints: enableCheckpoints ?? true,
 			shouldShowAnnouncement:
@@ -2013,6 +2021,8 @@ export class ClineProvider
 			openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel,
 			openRouterUseMiddleOutTransform,
+			googleCloudTtsApiKey,
+			azureTtsApiKey,
 			featureRoomoteControlEnabled,
 		}
 	}
@@ -2141,6 +2151,9 @@ export class ClineProvider
 			soundEnabled: stateValues.soundEnabled ?? false,
 			ttsEnabled: stateValues.ttsEnabled ?? false,
 			ttsSpeed: stateValues.ttsSpeed ?? 1.0,
+			ttsProvider: stateValues.ttsProvider ?? "native",
+			ttsVoice: stateValues.ttsVoice,
+			azureRegion: stateValues.azureRegion,
 			diffEnabled: stateValues.diffEnabled ?? true,
 			enableCheckpoints: stateValues.enableCheckpoints ?? true,
 			soundVolume: stateValues.soundVolume,
@@ -2233,6 +2246,8 @@ export class ClineProvider
 			})(),
 			openRouterImageApiKey: stateValues.openRouterImageApiKey,
 			openRouterImageGenerationSelectedModel: stateValues.openRouterImageGenerationSelectedModel,
+			googleCloudTtsApiKey: stateValues.googleCloudTtsApiKey,
+			azureTtsApiKey: stateValues.azureTtsApiKey,
 			featureRoomoteControlEnabled: (() => {
 				try {
 					const userSettings = CloudService.instance.getUserSettings()

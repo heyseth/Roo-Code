@@ -297,6 +297,8 @@ export type ExtensionState = Pick<
 	| "openRouterImageGenerationSelectedModel"
 	| "includeTaskHistoryInEnhance"
 	| "reasoningBlockCollapsed"
+	| "googleCloudTtsApiKey"
+	| "azureTtsApiKey"
 > & {
 	version: string
 	clineMessages: ClineMessage[]
