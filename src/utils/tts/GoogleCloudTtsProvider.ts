@@ -113,6 +113,65 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 		}
 	}
 
+	/**
+	 * Split text into chunks that respect Google Cloud TTS limits
+	 * Max 5000 chars per request, but sentences should be ~400 chars max
+	 */
+	private splitTextIntoChunks(text: string, maxChunkLength: number = 400): string[] {
+		const chunks: string[] = []
+
+		// Split on sentence boundaries
+		const sentences = text.match(/[^.!?]+[.!?]+|[^.!?]+$/g) || [text]
+
+		let currentChunk = ""
+
+		for (const sentence of sentences) {
+			const trimmedSentence = sentence.trim()
+
+			// If a single sentence is too long, split it further on commas or other punctuation
+			if (trimmedSentence.length > maxChunkLength) {
+				// First, save any accumulated chunk
+				if (currentChunk) {
+					chunks.push(currentChunk.trim())
+					currentChunk = ""
+				}
+
+				// Split long sentence on commas, semicolons, or dashes
+				const subparts = trimmedSentence.split(/([,;—])\s+/)
+				let subChunk = ""
+
+				for (const part of subparts) {
+					if (subChunk.length + part.length <= maxChunkLength) {
+						subChunk += part
+					} else {
+						if (subChunk) {
+							chunks.push(subChunk.trim())
+						}
+						subChunk = part
+					}
+				}
+
+				if (subChunk) {
+					chunks.push(subChunk.trim())
+				}
+			} else if (currentChunk.length + trimmedSentence.length + 1 > maxChunkLength) {
+				// Current chunk plus this sentence would be too long
+				chunks.push(currentChunk.trim())
+				currentChunk = trimmedSentence
+			} else {
+				// Add to current chunk
+				currentChunk += (currentChunk ? " " : "") + trimmedSentence
+			}
+		}
+
+		// Don't forget the last chunk
+		if (currentChunk) {
+			chunks.push(currentChunk.trim())
+		}
+
+		return chunks.filter((chunk) => chunk.length > 0)
+	}
+
 	async speak(text: string, options: TtsSpeakOptions = {}): Promise<void> {
 		console.log(
 			`[GoogleCloudTTS] speak called, text length: ${text.length}, voice: ${options.voice || "default"}, speed: ${options.speed || 1.0}`,
@@ -122,6 +181,10 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 			console.error(`[GoogleCloudTTS] No API key configured`)
 			throw this.createError("MISSING_API_KEY", "Google Cloud API key is not configured")
 		}
+
+		// Split long text into manageable chunks
+		const chunks = this.splitTextIntoChunks(text)
+		console.log(`[GoogleCloudTTS] Split text into ${chunks.length} chunks`)
 
 		try {
 			options.onStart?.()
@@ -152,45 +215,51 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 				}
 			}
 
-			// Build request
-			const request: any = {
-				input: { text },
-				voice: {
-					languageCode,
-					name: voiceName,
-				},
-				audioConfig: {
-					audioEncoding: "MP3" as const,
-					speakingRate: options.speed || 1.0,
-				},
+			// Process each chunk sequentially
+			for (let i = 0; i < chunks.length; i++) {
+				const chunk = chunks[i]
+				console.log(`[GoogleCloudTTS] Processing chunk ${i + 1}/${chunks.length}, length: ${chunk.length}`)
+
+				// Build request for this chunk
+				const request: any = {
+					input: { text: chunk },
+					voice: {
+						languageCode,
+						name: voiceName,
+					},
+					audioConfig: {
+						audioEncoding: "MP3" as const,
+						speakingRate: options.speed || 1.0,
+					},
+				}
+
+				console.log(`[GoogleCloudTTS] Synthesis request for chunk ${i + 1}:`, {
+					textLength: chunk.length,
+					voiceName: request.voice.name,
+					languageCode: request.voice.languageCode,
+					model: request.voice.model,
+					speakingRate: request.audioConfig.speakingRate,
+				})
+
+				const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.apiKey)}`
+				console.log(`[GoogleCloudTTS] Calling synthesizeSpeech REST for chunk ${i + 1}...`)
+				const response = await axios.post(url, request)
+
+				const audioContentB64: string | undefined = response.data?.audioContent
+				if (!audioContentB64) {
+					throw this.createError("SYNTHESIS_ERROR", "No audioContent returned from Google TTS")
+				}
+
+				const audioBuffer = Buffer.from(audioContentB64, "base64")
+				console.log(
+					`[GoogleCloudTTS] Chunk ${i + 1} synthesizeSpeech completed, audio content size: ${audioBuffer?.length || 0} bytes`,
+				)
+
+				// Play the audio for this chunk
+				console.log(`[GoogleCloudTTS] Playing audio for chunk ${i + 1}...`)
+				await this.playAudio(audioBuffer)
+				console.log(`[GoogleCloudTTS] Chunk ${i + 1} audio playback completed`)
 			}
-
-			console.log(`[GoogleCloudTTS] Synthesis request:`, {
-				textLength: text.length,
-				voiceName: request.voice.name,
-				languageCode: request.voice.languageCode,
-				model: request.voice.model,
-				speakingRate: request.audioConfig.speakingRate,
-			})
-
-			const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.apiKey)}`
-			console.log(`[GoogleCloudTTS] Calling synthesizeSpeech REST...`)
-			const response = await axios.post(url, request)
-
-			const audioContentB64: string | undefined = response.data?.audioContent
-			if (!audioContentB64) {
-				throw this.createError("SYNTHESIS_ERROR", "No audioContent returned from Google TTS")
-			}
-
-			const audioBuffer = Buffer.from(audioContentB64, "base64")
-			console.log(
-				`[GoogleCloudTTS] synthesizeSpeech completed, audio content size: ${audioBuffer?.length || 0} bytes`,
-			)
-
-			// Play the audio
-			console.log(`[GoogleCloudTTS] Playing audio...`)
-			await this.playAudio(audioBuffer)
-			console.log(`[GoogleCloudTTS] Audio playback completed`)
 
 			options.onStop?.()
 		} catch (error: any) {

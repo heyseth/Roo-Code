@@ -103,6 +103,8 @@ export const globalSettingsSchema = z.object({
 	ttsProvider: z.enum(["native", "google-cloud", "azure"]).optional(),
 	ttsVoice: z.string().optional(),
 	azureRegion: z.string().optional(),
+	googleCloudTtsApiKey: z.string().optional(),
+	azureTtsApiKey: z.string().optional(),
 	soundEnabled: z.boolean().optional(),
 	soundVolume: z.number().optional(),
 
