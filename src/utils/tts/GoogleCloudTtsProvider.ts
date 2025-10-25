@@ -172,6 +172,97 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 		return chunks.filter((chunk) => chunk.length > 0)
 	}
 
+	/**
+	 * Synthesize a single chunk with exponential backoff retry logic
+	 */
+	private async synthesizeChunkWithRetry(
+		chunk: string,
+		chunkIndex: number,
+		totalChunks: number,
+		languageCode: string,
+		voiceName: string,
+		speed: number,
+		maxRetries: number = 5,
+	): Promise<Buffer> {
+		const request: any = {
+			input: { text: chunk },
+			voice: {
+				languageCode,
+				name: voiceName,
+			},
+			audioConfig: {
+				audioEncoding: "MP3" as const,
+				speakingRate: speed,
+			},
+		}
+
+		const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.apiKey!)}`
+
+		for (let attempt = 0; attempt <= maxRetries; attempt++) {
+			try {
+				console.log(
+					`[GoogleCloudTTS] Synthesizing chunk ${chunkIndex + 1}/${totalChunks}${attempt > 0 ? ` (retry ${attempt}/${maxRetries})` : ""}, length: ${chunk.length}`,
+				)
+
+				const response = await axios.post(url, request)
+
+				const audioContentB64: string | undefined = response.data?.audioContent
+				if (!audioContentB64) {
+					throw this.createError("SYNTHESIS_ERROR", "No audioContent returned from Google TTS")
+				}
+
+				const audioBuffer = Buffer.from(audioContentB64, "base64")
+				console.log(
+					`[GoogleCloudTTS] Chunk ${chunkIndex + 1}/${totalChunks} synthesis completed, size: ${audioBuffer.length} bytes`,
+				)
+
+				return audioBuffer
+			} catch (error: any) {
+				const status = error?.response?.status
+				const message = error?.response?.data?.error?.message || error?.message
+
+				// Don't retry on auth errors
+				if (status === 401 || status === 403) {
+					console.error(`[GoogleCloudTTS] Auth error on chunk ${chunkIndex + 1}, not retrying`)
+					throw this.createError("INVALID_API_KEY", "Invalid Google Cloud API key or insufficient permissions")
+				}
+
+				// Check if we should retry (rate limit, server errors, network issues)
+				const shouldRetry =
+					attempt < maxRetries &&
+					(status === 429 || // Rate limit
+						status === 500 || // Internal server error
+						status === 502 || // Bad gateway
+						status === 503 || // Service unavailable
+						status === 504 || // Gateway timeout
+						error.code === "ECONNRESET" ||
+						error.code === "ETIMEDOUT" ||
+						error.code === "ENOTFOUND")
+
+				if (shouldRetry) {
+					// Exponential backoff: 1s, 2s, 4s, 8s, 16s
+					const delayMs = Math.min(1000 * Math.pow(2, attempt), 16000)
+					console.warn(
+						`[GoogleCloudTTS] Chunk ${chunkIndex + 1} failed (${status || error.code}): ${message}. Retrying in ${delayMs}ms...`,
+					)
+					await new Promise((resolve) => setTimeout(resolve, delayMs))
+					continue
+				}
+
+				// Final failure
+				console.error(`[GoogleCloudTTS] Chunk ${chunkIndex + 1} synthesis failed after ${attempt} retries:`, {
+					status,
+					message,
+					code: error.code,
+				})
+				throw this.createError("SYNTHESIS_ERROR", message || "Failed to synthesize speech")
+			}
+		}
+
+		// Should never reach here, but TypeScript requires it
+		throw this.createError("SYNTHESIS_ERROR", "Max retries exceeded")
+	}
+
 	async speak(text: string, options: TtsSpeakOptions = {}): Promise<void> {
 		console.log(
 			`[GoogleCloudTTS] speak called, text length: ${text.length}, voice: ${options.voice || "default"}, speed: ${options.speed || 1.0}`,
@@ -215,51 +306,37 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 				}
 			}
 
-			// Process each chunk sequentially
-			for (let i = 0; i < chunks.length; i++) {
-				const chunk = chunks[i]
-				console.log(`[GoogleCloudTTS] Processing chunk ${i + 1}/${chunks.length}, length: ${chunk.length}`)
+			// Synthesize all chunks in parallel
+			console.log(`[GoogleCloudTTS] Starting parallel synthesis of ${chunks.length} chunks...`)
+			const synthesisStartTime = Date.now()
 
-				// Build request for this chunk
-				const request: any = {
-					input: { text: chunk },
-					voice: {
+			const audioBuffers = await Promise.all(
+				chunks.map((chunk, index) =>
+					this.synthesizeChunkWithRetry(
+						chunk,
+						index,
+						chunks.length,
 						languageCode,
-						name: voiceName,
-					},
-					audioConfig: {
-						audioEncoding: "MP3" as const,
-						speakingRate: options.speed || 1.0,
-					},
-				}
+						voiceName,
+						options.speed || 1.0,
+					),
+				),
+			)
 
-				console.log(`[GoogleCloudTTS] Synthesis request for chunk ${i + 1}:`, {
-					textLength: chunk.length,
-					voiceName: request.voice.name,
-					languageCode: request.voice.languageCode,
-					model: request.voice.model,
-					speakingRate: request.audioConfig.speakingRate,
-				})
+			const synthesisEndTime = Date.now()
+			console.log(
+				`[GoogleCloudTTS] Parallel synthesis completed in ${synthesisEndTime - synthesisStartTime}ms, concatenating ${audioBuffers.length} audio chunks...`,
+			)
 
-				const url = `https://texttospeech.googleapis.com/v1/text:synthesize?key=${encodeURIComponent(this.apiKey)}`
-				console.log(`[GoogleCloudTTS] Calling synthesizeSpeech REST for chunk ${i + 1}...`)
-				const response = await axios.post(url, request)
+			// Concatenate all MP3 chunks into a single buffer to eliminate inter-chunk delays
+			// MP3 files can be concatenated by simply joining their binary data
+			const concatenatedAudio = Buffer.concat(audioBuffers)
+			console.log(
+				`[GoogleCloudTTS] Concatenated ${audioBuffers.length} chunks into single audio buffer (${concatenatedAudio.length} bytes), starting playback...`,
+			)
 
-				const audioContentB64: string | undefined = response.data?.audioContent
-				if (!audioContentB64) {
-					throw this.createError("SYNTHESIS_ERROR", "No audioContent returned from Google TTS")
-				}
-
-				const audioBuffer = Buffer.from(audioContentB64, "base64")
-				console.log(
-					`[GoogleCloudTTS] Chunk ${i + 1} synthesizeSpeech completed, audio content size: ${audioBuffer?.length || 0} bytes`,
-				)
-
-				// Play the audio for this chunk
-				console.log(`[GoogleCloudTTS] Playing audio for chunk ${i + 1}...`)
-				await this.playAudio(audioBuffer)
-				console.log(`[GoogleCloudTTS] Chunk ${i + 1} audio playback completed`)
-			}
+			// Play the concatenated audio as a single stream
+			await this.playAudio(concatenatedAudio)
 
 			options.onStop?.()
 		} catch (error: any) {
