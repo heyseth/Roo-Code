@@ -823,6 +823,69 @@ describe.each([[RepoPerTaskCheckpointService, "RepoPerTaskCheckpointService"]])(
 				// File should be back to original state
 				expect(await fs.readFile(testFile, "utf-8")).toBe("Hello, world!")
 			})
+
+			it("isolates checkpoint operations from GIT_DIR environment variable", async () => {
+				// This test verifies the fix for the issue where GIT_DIR environment variable
+				// causes checkpoint commits to go to the wrong repository
+
+				// Create a separate git directory to simulate GIT_DIR pointing elsewhere
+				const externalGitDir = path.join(tmpDir, `external-git-${Date.now()}`)
+				await fs.mkdir(externalGitDir, { recursive: true })
+				const externalGit = simpleGit(externalGitDir)
+				await externalGit.init()
+				await externalGit.addConfig("user.name", "External User")
+				await externalGit.addConfig("user.email", "external@example.com")
+
+				// Create and commit a file in the external repo
+				const externalFile = path.join(externalGitDir, "external.txt")
+				await fs.writeFile(externalFile, "External content")
+				await externalGit.add(".")
+				await externalGit.commit("External commit")
+
+				// Store the original commit count in the external repo
+				const externalLogBefore = await externalGit.log()
+				const externalCommitCountBefore = externalLogBefore.total
+
+				// Set GIT_DIR to point to the external repository
+				const originalGitDir = process.env.GIT_DIR
+				const externalDotGit = path.join(externalGitDir, ".git")
+				process.env.GIT_DIR = externalDotGit
+
+				try {
+					// Make a change in the workspace and save a checkpoint
+					await fs.writeFile(testFile, "Modified with GIT_DIR set")
+					const commit = await service.saveCheckpoint("Checkpoint with GIT_DIR set")
+					expect(commit?.commit).toBeTruthy()
+
+					// Verify the checkpoint was saved in the shadow repo, not the external repo
+					const externalLogAfter = await externalGit.log()
+					const externalCommitCountAfter = externalLogAfter.total
+
+					// External repo should have the same number of commits (no new commits)
+					expect(externalCommitCountAfter).toBe(externalCommitCountBefore)
+
+					// Verify the checkpoint is accessible in the shadow repo
+					const diff = await service.getDiff({ to: commit!.commit })
+					expect(diff).toHaveLength(1)
+					expect(diff[0].paths.relative).toBe("test.txt")
+					expect(diff[0].content.after).toBe("Modified with GIT_DIR set")
+
+					// Verify we can restore the checkpoint
+					await fs.writeFile(testFile, "Another modification")
+					await service.restoreCheckpoint(commit!.commit)
+					expect(await fs.readFile(testFile, "utf-8")).toBe("Modified with GIT_DIR set")
+				} finally {
+					// Restore original GIT_DIR
+					if (originalGitDir !== undefined) {
+						process.env.GIT_DIR = originalGitDir
+					} else {
+						delete process.env.GIT_DIR
+					}
+
+					// Clean up external git directory
+					await fs.rm(externalGitDir, { recursive: true, force: true })
+				}
+			})
 		})
 	},
 )
