@@ -83,8 +83,24 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 		try {
 			const apiVoices = await this.listVoicesRest()
 
-			// Map into our TtsVoice format
-			this.cachedVoices = apiVoices.map((voice: any) => {
+			// Valid voice names must match the pattern: en-US-Chirp3-HD-Achernar
+			// Invalid voices are just the name without the locale prefix: Achernar
+			const validVoicePattern = /^[a-z]{2}-[A-Z]{2}-.+/
+
+			// Filter and map into our TtsVoice format
+			const validVoices = apiVoices.filter((voice: any) => {
+				const isValid = validVoicePattern.test(voice.name)
+				if (!isValid) {
+					console.log(`[GoogleCloudTTS] Filtering out invalid voice: ${voice.name}`)
+				}
+				return isValid
+			})
+
+			console.log(
+				`[GoogleCloudTTS] Filtered ${apiVoices.length} voices to ${validVoices.length} valid voices (removed ${apiVoices.length - validVoices.length} invalid)`,
+			)
+
+			this.cachedVoices = validVoices.map((voice: any) => {
 				// Note: Google REST voices do not include a 'model' property in typical responses.
 				// Keep placeholder to preserve compatibility if Google adds it in future.
 				const model: string | undefined = voice.model
@@ -224,7 +240,10 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 				// Don't retry on auth errors
 				if (status === 401 || status === 403) {
 					console.error(`[GoogleCloudTTS] Auth error on chunk ${chunkIndex + 1}, not retrying`)
-					throw this.createError("INVALID_API_KEY", "Invalid Google Cloud API key or insufficient permissions")
+					throw this.createError(
+						"INVALID_API_KEY",
+						"Invalid Google Cloud API key or insufficient permissions",
+					)
 				}
 
 				// Check if we should retry (rate limit, server errors, network issues)
@@ -438,7 +457,9 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 							Start-Sleep 1;
 							Start-Sleep -s $player.NaturalDuration.TimeSpan.TotalSeconds;
 							Exit;
-						`.replace(/\t/g, "").replace(/\n\s+/g, " ")
+						`
+							.replace(/\t/g, "")
+							.replace(/\n\s+/g, " ")
 
 						this.currentAudio = spawn("powershell", ["-NoProfile", "-Command", psScript])
 
