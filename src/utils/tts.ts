@@ -1,9 +1,10 @@
 import { TtsProviderManager } from "./tts/TtsProviderManager"
-import { TtsVoice, TtsProviderType } from "./tts/types"
+import { TtsVoice, TtsProviderType, TtsCostDetails } from "./tts/types"
 
 type PlayTtsOptions = {
 	onStart?: () => void
 	onStop?: () => void
+	onCostIncurred?: (details: TtsCostDetails) => void
 }
 
 let isTtsEnabled = false

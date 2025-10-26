@@ -166,6 +166,7 @@ export const clineSays = [
 	"condense_context_error",
 	"codebase_search_result",
 	"user_edit_todos",
+	"tts_cost",
 ] as const
 
 export const clineSaySchema = z.enum(clineSays)
@@ -197,6 +198,18 @@ export const contextCondenseSchema = z.object({
 export type ContextCondense = z.infer<typeof contextCondenseSchema>
 
 /**
+ * TtsCost
+ */
+
+export const ttsCostSchema = z.object({
+	cost: z.number(),
+	charactersUsed: z.number(),
+	modelType: z.string().optional(),
+})
+
+export type TtsCost = z.infer<typeof ttsCostSchema>
+
+/**
  * ClineMessage
  */
 
@@ -213,6 +226,7 @@ export const clineMessageSchema = z.object({
 	checkpoint: z.record(z.string(), z.unknown()).optional(),
 	progressStatus: toolProgressStatusSchema.optional(),
 	contextCondense: contextCondenseSchema.optional(),
+	ttsCost: ttsCostSchema.optional(),
 	isProtected: z.boolean().optional(),
 	apiProtocol: z.union([z.literal("openai"), z.literal("anthropic")]).optional(),
 	isAnswered: z.boolean().optional(),

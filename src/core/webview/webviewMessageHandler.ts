@@ -1261,6 +1261,28 @@ export const webviewMessageHandler = async (
 				playTts(message.text, {
 					onStart: () => provider.postMessageToWebview({ type: "ttsStart", text: message.text }),
 					onStop: () => provider.postMessageToWebview({ type: "ttsStop", text: message.text }),
+					onCostIncurred: (details) => {
+						// Add TTS cost message to the current task if one is active
+						const task = provider.getCurrentTask()
+						if (task) {
+							task.say(
+								"tts_cost",
+								undefined, // text
+								undefined, // images
+								false, // partial
+								undefined, // checkpoint
+								undefined, // progressStatus
+								{ isNonInteractive: true }, // options
+								undefined, // contextCondense
+								{
+									// ttsCost
+									cost: details.cost,
+									charactersUsed: details.charactersUsed,
+									modelType: details.modelType,
+								}
+							)
+						}
+					},
 				})
 			}
 

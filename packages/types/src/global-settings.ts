@@ -105,6 +105,20 @@ export const globalSettingsSchema = z.object({
 	azureRegion: z.string().optional(),
 	googleCloudTtsApiKey: z.string().optional(),
 	azureTtsApiKey: z.string().optional(),
+	googleCloudTtsUsage: z
+		.object({
+			lastResetDate: z.string(),
+			usage: z.object({
+				wavenet: z.number(),
+				studio: z.number(),
+				standard: z.number(),
+				neural2: z.number(),
+				polyglot: z.number(),
+				chirp3Hd: z.number(),
+				instantCustom: z.number(),
+			}),
+		})
+		.optional(),
 	soundEnabled: z.boolean().optional(),
 	soundVolume: z.number().optional(),
 

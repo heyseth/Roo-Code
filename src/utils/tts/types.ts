@@ -13,11 +13,21 @@ export interface TtsVoice {
 	model?: string // For Google Cloud voices that require a model specification
 }
 
+export interface TtsCostDetails {
+	provider: TtsProviderType
+	modelType?: string
+	charactersUsed: number
+	charactersCostFree?: number
+	charactersCostPaid?: number
+	cost: number
+}
+
 export interface TtsSpeakOptions {
 	voice?: string
 	speed?: number
 	onStart?: () => void
 	onStop?: () => void
+	onCostIncurred?: (details: TtsCostDetails) => void
 }
 
 export interface TtsProviderError {

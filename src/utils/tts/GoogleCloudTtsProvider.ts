@@ -1,5 +1,12 @@
 import axios from "axios"
 import { TtsProvider, TtsProviderType, TtsVoice, TtsSpeakOptions, TtsProviderError } from "./types"
+import { ContextProxy } from "../../core/config/ContextProxy"
+import {
+	detectModelTypeFromVoiceName,
+	calculateTtsCost,
+	updateTtsUsage,
+	type GoogleCloudTtsUsage,
+} from "../../shared/ttsCost"
 
 /**
  * Google Cloud Text-to-Speech Provider (REST API via API Key)
@@ -362,6 +369,9 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 			// Play the concatenated audio as a single stream
 			await this.playAudio(concatenatedAudio)
 
+			// Track cost after successful synthesis
+			await this.trackCost(voiceName, text, options)
+
 			options.onStop?.()
 		} catch (error: any) {
 			console.error(`[GoogleCloudTTS] speak error:`, error)
@@ -574,6 +584,59 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 			return "models/tts:premium"
 		}
 		return "models/tts:standard"
+	}
+
+	/**
+	 * Track the cost of TTS synthesis and update usage statistics
+	 */
+	private async trackCost(voiceName: string, text: string, options: TtsSpeakOptions): Promise<void> {
+		try {
+			// Get the current usage from global state
+			const currentUsage = ContextProxy.instance.getGlobalState("googleCloudTtsUsage")
+
+			// Detect the model type from the voice name
+			const modelType = detectModelTypeFromVoiceName(voiceName)
+
+			// Count characters in the text
+			const charactersUsed = text.length
+
+			// Get current usage for this model type
+			const currentModelUsage = currentUsage?.usage?.[modelType] ?? 0
+
+			// Calculate cost
+			const costDetails = calculateTtsCost(modelType, charactersUsed, currentModelUsage)
+
+			// Update usage tracking
+			const updatedUsage = updateTtsUsage(currentUsage, modelType, charactersUsed)
+
+			// Save updated usage to global state
+			await ContextProxy.instance.updateGlobalState("googleCloudTtsUsage", updatedUsage)
+
+			console.log(`[GoogleCloudTTS] Cost tracking:`, {
+				voiceName,
+				modelType,
+				charactersUsed,
+				charactersCostFree: costDetails.charactersCostFree,
+				charactersCostPaid: costDetails.charactersCostPaid,
+				cost: costDetails.cost,
+				totalUsageThisMonth: updatedUsage.usage[modelType],
+			})
+
+			// Invoke cost callback if provided
+			if (options.onCostIncurred && costDetails.cost > 0) {
+				options.onCostIncurred({
+					provider: "google-cloud",
+					modelType,
+					charactersUsed,
+					charactersCostFree: costDetails.charactersCostFree,
+					charactersCostPaid: costDetails.charactersCostPaid,
+					cost: costDetails.cost,
+				})
+			}
+		} catch (error) {
+			// Don't throw errors from cost tracking - it shouldn't block TTS functionality
+			console.error(`[GoogleCloudTTS] Error tracking cost:`, error)
+		}
 	}
 
 	/**

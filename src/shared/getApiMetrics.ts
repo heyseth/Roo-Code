@@ -67,6 +67,8 @@ export function getApiMetrics(messages: ClineMessage[]) {
 			}
 		} else if (message.type === "say" && message.say === "condense_context") {
 			result.totalCost += message.contextCondense?.cost ?? 0
+		} else if (message.type === "say" && message.say === "tts_cost") {
+			result.totalCost += message.ttsCost?.cost ?? 0
 		}
 	})
 

@@ -18,6 +18,7 @@ import {
 	type ToolUsage,
 	type ToolName,
 	type ContextCondense,
+	type TtsCost,
 	type ClineMessage,
 	type ClineSay,
 	type ClineAsk,
@@ -1065,6 +1066,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 			metadata?: Record<string, unknown>
 		} = {},
 		contextCondense?: ContextCondense,
+		ttsCost?: TtsCost,
 	): Promise<undefined> {
 		if (this.abort) {
 			throw new Error(`[RooCode#say] task ${this.taskId}.${this.instanceId} aborted`)
@@ -1100,6 +1102,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						images,
 						partial,
 						contextCondense,
+						ttsCost,
 						metadata: options.metadata,
 					})
 				}
@@ -1146,6 +1149,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 						text,
 						images,
 						contextCondense,
+						ttsCost,
 						metadata: options.metadata,
 					})
 				}
@@ -1170,6 +1174,7 @@ export class Task extends EventEmitter<TaskEvents> implements TaskLike {
 				images,
 				checkpoint,
 				contextCondense,
+				ttsCost,
 			})
 		}
 	}
