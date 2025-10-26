@@ -535,6 +535,8 @@
 			"voiceLabel": "Voice",
 			"voiceDescription": "Select a voice for text-to-speech",
 			"voicePlaceholder": "Select a voice",
+			"searchVoicePlaceholder": "Search voices...",
+			"noVoicesFound": "No voices found",
 			"loadingVoices": "Loading voices...",
 			"noVoicesAvailable": "No voices available",
 			"providers": {

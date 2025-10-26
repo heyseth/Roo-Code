@@ -7,6 +7,7 @@ import { SetCachedStateField } from "./types"
 import { SectionHeader } from "./SectionHeader"
 import { Section } from "./Section"
 import { Slider, Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui"
+import { SearchableSelect } from "../ui/searchable-select"
 import { VSCodeButtonLink } from "../common/VSCodeButtonLink"
 import { vscode } from "@/utils/vscode"
 import { inputEventTransform } from "./transforms"
@@ -307,29 +308,25 @@ export const NotificationSettings = ({
 								<label className="block font-medium mb-1">
 									{t("settings:notifications.tts.voiceLabel")}
 								</label>
-								<Select
+								<SearchableSelect
 									value={ttsVoice || ""}
 									onValueChange={(value) => setCachedStateField("ttsVoice", value)}
-									disabled={loadingVoices || availableVoices.length === 0}>
-									<SelectTrigger className="w-full" data-testid="tts-voice-select">
-										<SelectValue
-											placeholder={
-												loadingVoices
-													? t("settings:notifications.tts.loadingVoices")
-													: availableVoices.length === 0
-														? t("settings:notifications.tts.noVoicesAvailable")
-														: t("settings:notifications.tts.voicePlaceholder")
-											}
-										/>
-									</SelectTrigger>
-									<SelectContent>
-										{availableVoices.map((voice) => (
-											<SelectItem key={voice.id} value={voice.id}>
-												{voice.name}
-											</SelectItem>
-										))}
-									</SelectContent>
-								</Select>
+									options={availableVoices.map((voice) => ({
+										value: voice.id,
+										label: voice.name,
+									}))}
+									placeholder={
+										loadingVoices
+											? t("settings:notifications.tts.loadingVoices")
+											: availableVoices.length === 0
+												? t("settings:notifications.tts.noVoicesAvailable")
+												: t("settings:notifications.tts.voicePlaceholder")
+									}
+									searchPlaceholder={t("settings:notifications.tts.searchVoicePlaceholder")}
+									emptyMessage={t("settings:notifications.tts.noVoicesFound")}
+									disabled={loadingVoices || availableVoices.length === 0}
+									data-testid="tts-voice-select"
+								/>
 								<div className="text-sm text-vscode-descriptionForeground mt-1">
 									{t("settings:notifications.tts.voiceDescription")}
 								</div>
