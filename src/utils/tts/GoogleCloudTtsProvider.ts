@@ -293,7 +293,7 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 			// Prefer the requested voice if it's present and looks valid; otherwise substitute a known-good one
 			const validPattern = /^[a-z]{2}-[A-Z]{2}-/
 			const requested = options.voice
-			let voiceName = requested
+			let voiceName: string | undefined = requested
 
 			if (!voiceName || !validPattern.test(voiceName) || !this.cachedVoices.find((v) => v.id === voiceName)) {
 				const targetLang = this.extractLanguageCode(requested) || "en-US"
@@ -304,6 +304,11 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 					)
 					voiceName = candidate.id
 				}
+			}
+
+			// Ensure we have a valid voice name
+			if (!voiceName) {
+				throw this.createError("VOICE_LIST_ERROR", "No valid voice available for synthesis")
 			}
 
 			// Synthesize all chunks in parallel
@@ -365,14 +370,20 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 	}
 
 	stop(): void {
+		console.log(`[GoogleCloudTTS] stop() called, currentAudio exists: ${!!this.currentAudio}`)
 		// Stop current audio playback if any
 		if (this.currentAudio) {
 			try {
+				console.log(`[GoogleCloudTTS] Killing audio playback process...`)
 				this.currentAudio.kill()
-			} catch {
+				console.log(`[GoogleCloudTTS] Audio playback process killed successfully`)
+			} catch (error: any) {
+				console.error(`[GoogleCloudTTS] Error killing audio playback:`, error)
 				// Ignore errors when stopping
 			}
 			this.currentAudio = undefined
+		} else {
+			console.log(`[GoogleCloudTTS] No active audio playback to stop`)
 		}
 	}
 
@@ -404,14 +415,13 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 			const os = require("os")
 			const platform = os.platform()
 
-			// Windows: System.Media.SoundPlayer doesn't support MP3 over stdin.
-			// Write to a temp .mp3 and play using the "sound-play" package instead.
+			// Windows: Use PowerShell's MediaPlayer with a trackable process
 			if (platform === "win32") {
 				;(async () => {
 					try {
 						const path = require("path")
 						const fs = require("fs/promises")
-						const soundPlay = require("sound-play")
+						const { spawn } = require("child_process")
 
 						const tmpFile = path.join(
 							os.tmpdir(),
@@ -419,13 +429,35 @@ export class GoogleCloudTtsProvider implements TtsProvider {
 						)
 						await fs.writeFile(tmpFile, audioContent)
 
-						await soundPlay.play(tmpFile).catch((err: any) => {
-							throw err
+						// Use PowerShell MediaPlayer directly so we can track and kill the process
+						const psScript = `
+							Add-Type -AssemblyName presentationCore;
+							$player = New-Object system.windows.media.mediaplayer;
+							$player.open('${tmpFile.replace(/\\/g, "\\\\")}');
+							$player.Play();
+							Start-Sleep 1;
+							Start-Sleep -s $player.NaturalDuration.TimeSpan.TotalSeconds;
+							Exit;
+						`.replace(/\t/g, "").replace(/\n\s+/g, " ")
+
+						this.currentAudio = spawn("powershell", ["-NoProfile", "-Command", psScript])
+
+						this.currentAudio.on("close", (code: number) => {
+							this.currentAudio = undefined
+							// Cleanup temp file
+							fs.unlink(tmpFile).catch(() => {})
+							if (code === 0 || code === null) {
+								resolve()
+							} else {
+								reject(this.createError("PLAYBACK_ERROR", `Audio playback failed with code ${code}`))
+							}
 						})
 
-						// Cleanup but don't block resolve on cleanup errors
-						fs.unlink(tmpFile).catch(() => {})
-						resolve()
+						this.currentAudio.on("error", (error: Error) => {
+							this.currentAudio = undefined
+							fs.unlink(tmpFile).catch(() => {})
+							reject(this.createError("PLAYBACK_ERROR", error.message))
+						})
 					} catch (err: any) {
 						reject(this.createError("PLAYBACK_ERROR", err?.message || "Failed to play audio on Windows"))
 					}
