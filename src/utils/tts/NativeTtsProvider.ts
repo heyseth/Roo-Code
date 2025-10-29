@@ -14,6 +14,7 @@ export class NativeTtsProvider implements TtsProvider {
 	readonly type: TtsProviderType = "native"
 	private sayInstance: Say | undefined = undefined
 	private cachedVoices: TtsVoice[] = []
+	private currentOnStop: (() => void) | undefined = undefined
 
 	async isConfigured(): Promise<boolean> {
 		// Native TTS is always available (no API keys required)
@@ -87,15 +88,39 @@ export class NativeTtsProvider implements TtsProvider {
 				const say: Say = require("say")
 				this.sayInstance = say
 
-				options.onStart?.()
+				// Validate voice - only use it if it looks like a native voice name
+				// Native voices are typically simple names like "Alex", "Samantha", etc.
+				// Cloud provider voices have patterns like "en-GB-Chirp3-HD-Umbriel"
+				let voice = options.voice && options.voice !== "default" ? options.voice : undefined
+				
+				// If voice contains hyphens or looks like a cloud provider voice, ignore it and use default
+				if (voice && (voice.includes('-') || voice.includes('Chirp') || voice.includes('Neural') || voice.includes('Wavenet'))) {
+					console.log(`[NativeTTS] Ignoring cloud provider voice "${voice}", using system default`)
+					voice = undefined
+				}
 
-				const voice = options.voice && options.voice !== "default" ? options.voice : undefined
 				const speed = options.speed ?? 1.0
 
+				// Store onStop callback to be called when stop() is invoked
+				this.currentOnStop = options.onStop
+
+				// Call onStart immediately to show the button
+				options.onStart?.()
+
+				const startTime = Date.now()
+				console.log(`[NativeTTS] Starting speech, text length: ${text.length}, voice: ${voice || 'default'}`)
+
 				say.speak(text, voice, speed, (err) => {
-					options.onStop?.()
+					const duration = Date.now() - startTime
+					console.log(`[NativeTTS] Callback fired after ${duration}ms, err: ${err}`)
 
 					if (err) {
+						// On error, call onStop and reject
+						console.log(`[NativeTTS] Error occurred, calling onStop`)
+						if (this.currentOnStop) {
+							this.currentOnStop()
+							this.currentOnStop = undefined
+						}
 						const error: TtsProviderError = {
 							code: "NATIVE_TTS_ERROR",
 							message: err,
@@ -103,13 +128,25 @@ export class NativeTtsProvider implements TtsProvider {
 						}
 						reject(error)
 					} else {
+						// On success, call onStop and resolve
+						console.log(`[NativeTTS] Speech completed successfully, calling onStop`)
+						if (this.currentOnStop) {
+							this.currentOnStop()
+							this.currentOnStop = undefined
+						}
 						resolve()
 					}
 
 					this.sayInstance = undefined
 				})
+
+				console.log(`[NativeTTS] say.speak() called, waiting for callback...`)
 			} catch (error: any) {
-				options.onStop?.()
+				console.log(`[NativeTTS] Exception in speak():`, error)
+				if (this.currentOnStop) {
+					this.currentOnStop()
+					this.currentOnStop = undefined
+				}
 				this.sayInstance = undefined
 
 				const providerError: TtsProviderError = {
@@ -126,6 +163,11 @@ export class NativeTtsProvider implements TtsProvider {
 		if (this.sayInstance) {
 			this.sayInstance.stop()
 			this.sayInstance = undefined
+		}
+		// Call onStop when manually stopped
+		if (this.currentOnStop) {
+			this.currentOnStop()
+			this.currentOnStop = undefined
 		}
 	}
 
