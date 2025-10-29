@@ -1,5 +1,6 @@
 import axios from "axios"
 import { TtsProvider, TtsProviderType, TtsVoice, TtsSpeakOptions, TtsProviderError } from "./types"
+import { ChildProcess } from "child_process"
 
 /**
  * Microsoft Azure Text-to-Speech Provider (REST API)
@@ -14,7 +15,7 @@ import { TtsProvider, TtsProviderType, TtsVoice, TtsSpeakOptions, TtsProviderErr
 export class AzureTtsProvider implements TtsProvider {
 	readonly type: TtsProviderType = "azure"
 	private cachedVoices: TtsVoice[] = []
-	private currentAudio: HTMLAudioElement | undefined
+	private currentAudio: ChildProcess | undefined
 	private apiKey: string | undefined
 	private region: string | undefined
 
@@ -151,36 +152,13 @@ export class AzureTtsProvider implements TtsProvider {
 				responseType: "arraybuffer",
 			})
 
-			// Convert array buffer to base64 data URL
-			const audioData = Buffer.from(response.data).toString("base64")
-			const audioUrl = `data:audio/mp3;base64,${audioData}`
+			// Convert array buffer to audio buffer
+			const audioBuffer = Buffer.from(response.data)
 
-			// Play audio
-			return new Promise((resolve, reject) => {
-				this.currentAudio = new Audio(audioUrl)
-
-				this.currentAudio.onplay = () => {
-					options.onStart?.()
-				}
-
-				this.currentAudio.onended = () => {
-					options.onStop?.()
-					this.currentAudio = undefined
-					resolve()
-				}
-
-				this.currentAudio.onerror = (error) => {
-					options.onStop?.()
-					this.currentAudio = undefined
-					reject(this.createError("PLAYBACK_ERROR", "Failed to play synthesized audio"))
-				}
-
-				this.currentAudio.play().catch((error) => {
-					options.onStop?.()
-					this.currentAudio = undefined
-					reject(this.createError("PLAYBACK_ERROR", error?.message || "Failed to play audio"))
-				})
-			})
+			// Play audio using system audio player
+			options.onStart?.()
+			await this.playAudio(audioBuffer)
+			options.onStop?.()
 		} catch (error: any) {
 			if (error.provider === "azure") {
 				throw error // Already a TtsProviderError
@@ -198,13 +176,114 @@ export class AzureTtsProvider implements TtsProvider {
 	stop(): void {
 		if (this.currentAudio) {
 			try {
-				this.currentAudio.pause()
-				this.currentAudio.currentTime = 0
+				this.currentAudio.kill()
 			} catch (error) {
 				// Ignore errors when stopping
 			}
 			this.currentAudio = undefined
 		}
+	}
+
+	/**
+	 * Play audio using a system audio player
+	 */
+	private async playAudio(audioContent: Buffer): Promise<void> {
+		return new Promise((resolve, reject) => {
+			const os = require("os")
+			const platform = os.platform()
+
+			// Windows: Use PowerShell's MediaPlayer with a trackable process
+			if (platform === "win32") {
+				;(async () => {
+					try {
+						const path = require("path")
+						const fs = require("fs/promises")
+						const { spawn } = require("child_process")
+
+						const tmpFile = path.join(
+							os.tmpdir(),
+							`roo-tts-azure-${Date.now()}-${Math.random().toString(36).slice(2)}.mp3`,
+						)
+						await fs.writeFile(tmpFile, audioContent)
+
+						// Use PowerShell MediaPlayer directly so we can track and kill the process
+						const psScript = `
+							Add-Type -AssemblyName presentationCore;
+							$player = New-Object system.windows.media.mediaplayer;
+							$player.open('${tmpFile.replace(/\\/g, "\\\\")}');
+							$player.Play();
+							Start-Sleep 1;
+							Start-Sleep -s $player.NaturalDuration.TimeSpan.TotalSeconds;
+							Exit;
+						`
+							.replace(/\t/g, "")
+							.replace(/\n\s+/g, " ")
+
+						this.currentAudio = spawn("powershell", ["-NoProfile", "-Command", psScript])
+
+						this.currentAudio.on("close", (code: number) => {
+							this.currentAudio = undefined
+							// Cleanup temp file
+							fs.unlink(tmpFile).catch(() => {})
+							if (code === 0 || code === null) {
+								resolve()
+							} else {
+								reject(this.createError("PLAYBACK_ERROR", `Audio playback failed with code ${code}`))
+							}
+						})
+
+						this.currentAudio.on("error", (error: Error) => {
+							this.currentAudio = undefined
+							fs.unlink(tmpFile).catch(() => {})
+							reject(this.createError("PLAYBACK_ERROR", error.message))
+						})
+					} catch (err: any) {
+						reject(this.createError("PLAYBACK_ERROR", err?.message || "Failed to play audio on Windows"))
+					}
+				})()
+				return
+			}
+
+			// macOS/Linux: stream to afplay/mpg123 via stdin
+			try {
+				const { spawn } = require("child_process")
+
+				let player: string
+				let args: string[]
+
+				if (platform === "darwin") {
+					player = "afplay"
+					args = ["-"]
+				} else {
+					// Linux
+					player = "mpg123"
+					args = ["-q", "-"]
+				}
+
+				this.currentAudio = spawn(player, args)
+
+				// Write audio data to stdin
+				this.currentAudio.stdin.write(audioContent)
+				this.currentAudio.stdin.end()
+
+				this.currentAudio.on("close", (code: number) => {
+					this.currentAudio = undefined
+					if (code === 0) {
+						resolve()
+					} else {
+						reject(this.createError("PLAYBACK_ERROR", `Audio playback failed with code ${code}`))
+					}
+				})
+
+				this.currentAudio.on("error", (error: Error) => {
+					this.currentAudio = undefined
+					reject(this.createError("PLAYBACK_ERROR", error.message))
+				})
+			} catch (error: any) {
+				this.currentAudio = undefined
+				reject(this.createError("PLAYBACK_ERROR", error?.message || "Failed to play audio"))
+			}
+		})
 	}
 
 	async validateConfiguration(): Promise<void> {
