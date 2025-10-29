@@ -1,17 +1,22 @@
+import axios from "axios"
 import { TtsProvider, TtsProviderType, TtsVoice, TtsSpeakOptions, TtsProviderError } from "./types"
 
 /**
- * Microsoft Azure Text-to-Speech Provider
- * Requires microsoft-cognitiveservices-speech-sdk package
+ * Microsoft Azure Text-to-Speech Provider (REST API)
+ * Uses HTTPS REST endpoints with API key authentication
+ *
+ * Endpoints:
+ * - List voices: GET https://{region}.tts.speech.microsoft.com/cognitiveservices/voices/list
+ * - Synthesize:  POST https://{region}.tts.speech.microsoft.com/cognitiveservices/v1
+ *
+ * Documentation: https://learn.microsoft.com/en-us/azure/ai-services/speech-service/rest-text-to-speech
  */
 export class AzureTtsProvider implements TtsProvider {
 	readonly type: TtsProviderType = "azure"
-	private speechConfig: any = undefined
-	private synthesizer: any = undefined
 	private cachedVoices: TtsVoice[] = []
+	private currentAudio: HTMLAudioElement | undefined
 	private apiKey: string | undefined
 	private region: string | undefined
-	private isPlaying: boolean = false
 
 	constructor(apiKey?: string, region?: string) {
 		this.apiKey = apiKey
@@ -24,8 +29,6 @@ export class AzureTtsProvider implements TtsProvider {
 	setCredentials(apiKey: string, region: string): void {
 		this.apiKey = apiKey
 		this.region = region
-		this.speechConfig = undefined // Reset config to force re-initialization
-		this.synthesizer = undefined
 		this.cachedVoices = [] // Clear cached voices
 	}
 
@@ -33,30 +36,52 @@ export class AzureTtsProvider implements TtsProvider {
 		return !!(this.apiKey && this.region)
 	}
 
-	private async getSpeechConfig(): Promise<any> {
+	/**
+	 * GET /cognitiveservices/voices/list
+	 * Lists all available voices for the region
+	 */
+	private async listVoicesFromAPI(): Promise<any[]> {
 		if (!this.apiKey || !this.region) {
 			throw this.createError("MISSING_CREDENTIALS", "Azure Speech API key and region are required")
 		}
 
-		if (this.speechConfig) {
-			return this.speechConfig
-		}
+		const url = `https://${this.region}.tts.speech.microsoft.com/cognitiveservices/voices/list`
+
+		console.log(`[AzureTTS] Fetching voices from REST API: ${url}`)
 
 		try {
-			const sdk = require("microsoft-cognitiveservices-speech-sdk")
+			const response = await axios.get(url, {
+				headers: {
+					"Ocp-Apim-Subscription-Key": this.apiKey,
+				},
+			})
 
-			this.speechConfig = sdk.SpeechConfig.fromSubscription(this.apiKey, this.region)
-			this.speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3
+			const voices = response.data ?? []
+			console.log(`[AzureTTS] Retrieved ${voices.length} voices from API`)
 
-			return this.speechConfig
-		} catch (error: any) {
-			if (error.code === "MODULE_NOT_FOUND") {
-				throw this.createError(
-					"SDK_NOT_INSTALLED",
-					"Azure Speech SDK is not installed. Please install microsoft-cognitiveservices-speech-sdk",
-				)
+			if (voices.length > 0) {
+				console.log(`[AzureTTS] Sample voice structure:`, {
+					shortName: voices[0].ShortName,
+					locale: voices[0].Locale,
+					displayName: voices[0].DisplayName,
+					localName: voices[0].LocalName,
+					gender: voices[0].Gender,
+					allFields: Object.keys(voices[0]),
+				})
 			}
-			throw this.createError("CONFIG_INIT_ERROR", error?.message || "Failed to initialize Azure Speech config")
+
+			return voices
+		} catch (error: any) {
+			const status = error?.response?.status
+			const message = error?.response?.data?.error?.message || error?.message || "Failed to list voices"
+
+			console.error(`[AzureTTS] listVoices REST error:`, { status, message })
+
+			if (status === 401 || status === 403) {
+				throw this.createError("INVALID_API_KEY", "Invalid Azure Speech API key or region")
+			}
+
+			throw this.createError("VOICE_LIST_ERROR", message)
 		}
 	}
 
@@ -67,41 +92,18 @@ export class AzureTtsProvider implements TtsProvider {
 		}
 
 		try {
-			const sdk = require("microsoft-cognitiveservices-speech-sdk")
-			const speechConfig = await this.getSpeechConfig()
+			const apiVoices = await this.listVoicesFromAPI()
 
-			// Create a synthesizer to list voices
-			const synthesizer = new sdk.SpeechSynthesizer(speechConfig)
+			this.cachedVoices = apiVoices.map((voice: any) => ({
+				id: voice.ShortName,
+				name: `${voice.LocalName || voice.DisplayName} (${voice.Locale})`,
+				language: voice.Locale,
+				gender: this.mapGender(voice.Gender),
+				provider: "azure" as TtsProviderType,
+			}))
 
-			return new Promise((resolve, reject) => {
-				synthesizer.getVoicesAsync(
-					(result: any) => {
-						if (result.reason === sdk.ResultReason.VoicesListRetrieved) {
-							this.cachedVoices = result.voices.map((voice: any) => ({
-								id: voice.shortName,
-								name: `${voice.localName} (${voice.locale})`,
-								language: voice.locale,
-								gender: this.mapGender(voice.gender),
-								provider: "azure" as TtsProviderType,
-							}))
-							synthesizer.close()
-							resolve(this.cachedVoices)
-						} else {
-							synthesizer.close()
-							reject(this.createError("VOICE_LIST_ERROR", "Failed to retrieve voices from Azure Speech"))
-						}
-					},
-					(error: any) => {
-						synthesizer.close()
-						reject(
-							this.createError(
-								"VOICE_LIST_ERROR",
-								error?.message || "Failed to retrieve voices from Azure Speech",
-							),
-						)
-					},
-				)
-			})
+			console.log(`[AzureTTS] Cached ${this.cachedVoices.length} voices`)
+			return this.cachedVoices
 		} catch (error: any) {
 			if (error.provider === "azure") {
 				throw error // Already a TtsProviderError
@@ -111,87 +113,82 @@ export class AzureTtsProvider implements TtsProvider {
 	}
 
 	async speak(text: string, options: TtsSpeakOptions = {}): Promise<void> {
-		if (this.isPlaying) {
-			throw this.createError("ALREADY_PLAYING", "Azure TTS is already playing audio")
+		if (!this.apiKey || !this.region) {
+			throw this.createError("MISSING_CREDENTIALS", "Azure Speech API key and region are required")
 		}
 
+		// Stop any currently playing audio
+		this.stop()
+
 		try {
-			const sdk = require("microsoft-cognitiveservices-speech-sdk")
-			const speechConfig = await this.getSpeechConfig()
-
-			// Set voice if specified
-			if (options.voice) {
-				speechConfig.speechSynthesisVoiceName = options.voice
+			// Ensure voices are loaded
+			if (this.cachedVoices.length === 0) {
+				await this.getVoices()
 			}
 
-			// Create audio config for speaker output
-			const audioConfig = sdk.AudioConfig.fromDefaultSpeakerOutput()
-			this.synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig)
+			// Select voice
+			const voiceName = options.voice || this.cachedVoices[0]?.id || "en-US-AriaNeural"
+			const speed = options.speed || 1.0
 
-			this.isPlaying = true
-			options.onStart?.()
+			// Build SSML
+			const rate = this.speedToRate(speed)
+			const ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">
+				<voice name="${voiceName}">
+					<prosody rate="${rate}">${this.escapeXml(text)}</prosody>
+				</voice>
+			</speak>`
 
-			// Build SSML if speed is specified
-			let ssml: string
-			if (options.speed && options.speed !== 1.0) {
-				const rate = this.speedToRate(options.speed)
-				const voiceName = options.voice || "en-US-AriaNeural"
-				ssml = `<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="en-US">
-					<voice name="${voiceName}">
-						<prosody rate="${rate}">${this.escapeXml(text)}</prosody>
-					</voice>
-				</speak>`
-			} else {
-				ssml = text
-			}
+			const url = `https://${this.region}.tts.speech.microsoft.com/cognitiveservices/v1`
 
+			console.log(`[AzureTTS] Synthesizing speech with voice: ${voiceName}, speed: ${speed}`)
+
+			const response = await axios.post(url, ssml, {
+				headers: {
+					"Ocp-Apim-Subscription-Key": this.apiKey,
+					"Content-Type": "application/ssml+xml",
+					"X-Microsoft-OutputFormat": "audio-16khz-32kbitrate-mono-mp3",
+				},
+				responseType: "arraybuffer",
+			})
+
+			// Convert array buffer to base64 data URL
+			const audioData = Buffer.from(response.data).toString("base64")
+			const audioUrl = `data:audio/mp3;base64,${audioData}`
+
+			// Play audio
 			return new Promise((resolve, reject) => {
-				// Use SSML if we have it, otherwise use plain text
-				const speakMethod =
-					options.speed && options.speed !== 1.0
-						? this.synthesizer.speakSsmlAsync.bind(this.synthesizer)
-						: this.synthesizer.speakTextAsync.bind(this.synthesizer)
+				this.currentAudio = new Audio(audioUrl)
 
-				speakMethod(
-					ssml,
-					(result: any) => {
-						this.isPlaying = false
-						options.onStop?.()
+				this.currentAudio.onplay = () => {
+					options.onStart?.()
+				}
 
-						if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
-							this.synthesizer.close()
-							this.synthesizer = undefined
-							resolve()
-						} else {
-							const errorDetails = result.errorDetails || "Unknown error"
-							this.synthesizer.close()
-							this.synthesizer = undefined
-							reject(this.createError("SYNTHESIS_ERROR", errorDetails))
-						}
-					},
-					(error: any) => {
-						this.isPlaying = false
-						options.onStop?.()
+				this.currentAudio.onended = () => {
+					options.onStop?.()
+					this.currentAudio = undefined
+					resolve()
+				}
 
-						if (this.synthesizer) {
-							this.synthesizer.close()
-							this.synthesizer = undefined
-						}
-						reject(
-							this.createError(
-								"SYNTHESIS_ERROR",
-								error?.message || "Failed to synthesize speech with Azure",
-							),
-						)
-					},
-				)
+				this.currentAudio.onerror = (error) => {
+					options.onStop?.()
+					this.currentAudio = undefined
+					reject(this.createError("PLAYBACK_ERROR", "Failed to play synthesized audio"))
+				}
+
+				this.currentAudio.play().catch((error) => {
+					options.onStop?.()
+					this.currentAudio = undefined
+					reject(this.createError("PLAYBACK_ERROR", error?.message || "Failed to play audio"))
+				})
 			})
 		} catch (error: any) {
-			this.isPlaying = false
-			options.onStop?.()
-
 			if (error.provider === "azure") {
 				throw error // Already a TtsProviderError
+			}
+
+			const status = error?.response?.status
+			if (status === 401 || status === 403) {
+				throw this.createError("INVALID_API_KEY", "Invalid Azure Speech API key or region")
 			}
 
 			throw this.createError("SYNTHESIS_ERROR", error?.message || "Failed to synthesize speech")
@@ -199,15 +196,15 @@ export class AzureTtsProvider implements TtsProvider {
 	}
 
 	stop(): void {
-		if (this.synthesizer) {
+		if (this.currentAudio) {
 			try {
-				this.synthesizer.close()
+				this.currentAudio.pause()
+				this.currentAudio.currentTime = 0
 			} catch (error) {
 				// Ignore errors when stopping
 			}
-			this.synthesizer = undefined
+			this.currentAudio = undefined
 		}
-		this.isPlaying = false
 	}
 
 	async validateConfiguration(): Promise<void> {
@@ -219,7 +216,7 @@ export class AzureTtsProvider implements TtsProvider {
 			// Try to get voices to validate the credentials
 			await this.getVoices()
 		} catch (error: any) {
-			if (error.code === "MISSING_CREDENTIALS" || error.code === "SDK_NOT_INSTALLED") {
+			if (error.code === "MISSING_CREDENTIALS") {
 				throw error
 			}
 
@@ -227,7 +224,8 @@ export class AzureTtsProvider implements TtsProvider {
 			if (
 				error?.message?.includes("authentication") ||
 				error?.message?.includes("Unauthorized") ||
-				error?.message?.includes("401")
+				error?.message?.includes("401") ||
+				error?.code === "INVALID_API_KEY"
 			) {
 				throw this.createError("INVALID_CREDENTIALS", "Invalid Azure Speech API key or region")
 			}
@@ -237,14 +235,14 @@ export class AzureTtsProvider implements TtsProvider {
 	}
 
 	/**
-	 * Map Azure gender enum to our gender type
+	 * Map Azure gender string to our gender type
 	 */
-	private mapGender(gender: number): "male" | "female" | "neutral" | undefined {
-		// Azure uses: 1 = Female, 2 = Male
-		switch (gender) {
-			case 1:
+	private mapGender(gender: string): "male" | "female" | "neutral" | undefined {
+		const genderLower = gender?.toLowerCase()
+		switch (genderLower) {
+			case "female":
 				return "female"
-			case 2:
+			case "male":
 				return "male"
 			default:
 				return "neutral"
