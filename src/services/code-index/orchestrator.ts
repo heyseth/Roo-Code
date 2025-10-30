@@ -288,15 +288,17 @@ export class CodeIndexOrchestrator {
 				stack: error instanceof Error ? error.stack : undefined,
 				location: "startIndexing",
 			})
-			try {
-				await this.vectorStore.clearCollection()
-			} catch (cleanupError) {
-				console.error("[CodeIndexOrchestrator] Failed to clean up after error:", cleanupError)
-				TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
-					error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
-					stack: cleanupError instanceof Error ? cleanupError.stack : undefined,
-					location: "startIndexing.cleanup",
-				})
+			if (indexingStarted) {
+				try {
+					await this.vectorStore.clearCollection()
+				} catch (cleanupError) {
+					console.error("[CodeIndexOrchestrator] Failed to clean up after error:", cleanupError)
+					TelemetryService.instance.captureEvent(TelemetryEventName.CODE_INDEX_ERROR, {
+						error: cleanupError instanceof Error ? cleanupError.message : String(cleanupError),
+						stack: cleanupError instanceof Error ? cleanupError.stack : undefined,
+						location: "startIndexing.cleanup",
+					})
+				}
 			}
 
 			// Only clear cache if indexing had started (Qdrant connection succeeded)

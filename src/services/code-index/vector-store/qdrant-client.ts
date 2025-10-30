@@ -2,10 +2,9 @@ import { QdrantClient, Schemas } from "@qdrant/js-client-rest"
 import { createHash } from "crypto"
 import * as path from "path"
 import { v5 as uuidv5 } from "uuid"
-import { getWorkspacePath } from "../../../utils/path"
 import { IVectorStore } from "../interfaces/vector-store"
 import { Payload, VectorStoreSearchResult } from "../interfaces"
-import { DEFAULT_MAX_SEARCH_RESULTS, DEFAULT_SEARCH_MIN_SCORE, QDRANT_CODE_BLOCK_NAMESPACE } from "../constants/"
+import { DEFAULT_MAX_SEARCH_RESULTS, DEFAULT_SEARCH_MIN_SCORE, QDRANT_CODE_BLOCK_NAMESPACE } from "../constants"
 import { t } from "../../../i18n"
 
 /**
@@ -387,7 +386,12 @@ export class QdrantVectorStore implements IVectorStore {
 		maxResults?: number,
 	): Promise<VectorStoreSearchResult[]> {
 		try {
-			let filter = undefined
+			let filter:
+				| {
+						must: Array<{ key: string; match: { value: string } }>
+						must_not?: Array<{ key: string; match: { value: string } }>
+				  }
+				| undefined = undefined
 
 			if (directoryPrefix) {
 				// Check if the path represents current directory
@@ -413,9 +417,18 @@ export class QdrantVectorStore implements IVectorStore {
 				}
 			}
 
+			// Always exclude metadata points at query-time to avoid wasting top-k
+			const metadataExclusion = {
+				must_not: [{ key: "type", match: { value: "metadata" } }],
+			}
+
+			const mergedFilter = filter
+				? { ...filter, must_not: [...(filter.must_not || []), ...metadataExclusion.must_not] }
+				: metadataExclusion
+
 			const searchRequest = {
 				query: queryVector,
-				filter,
+				filter: mergedFilter,
 				score_threshold: minScore ?? DEFAULT_SEARCH_MIN_SCORE,
 				limit: maxResults ?? DEFAULT_MAX_SEARCH_RESULTS,
 				params: {
