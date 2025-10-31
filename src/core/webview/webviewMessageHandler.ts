@@ -49,6 +49,7 @@ import {
 	stopTts,
 	setTtsProvider,
 	setTtsVoice,
+	setTtsVoiceForProvider,
 	getTtsVoices,
 	getTtsVoicesForProvider,
 	validateTtsProvider,
@@ -1324,6 +1325,33 @@ export const webviewMessageHandler = async (
 				await provider.postStateToWebview()
 			} else {
 				console.warn(`[TTS Handler] ttsVoice message received but value is empty`)
+			}
+			break
+		}
+		case "ttsVoiceNative": {
+			const voice = message.text
+			if (voice !== undefined) {
+				await updateGlobalState("ttsVoiceNative", voice)
+				setTtsVoiceForProvider("native", voice)
+				await provider.postStateToWebview()
+			}
+			break
+		}
+		case "ttsVoiceGoogleCloud": {
+			const voice = message.text
+			if (voice !== undefined) {
+				await updateGlobalState("ttsVoiceGoogleCloud", voice)
+				setTtsVoiceForProvider("google-cloud", voice)
+				await provider.postStateToWebview()
+			}
+			break
+		}
+		case "ttsVoiceAzure": {
+			const voice = message.text
+			if (voice !== undefined) {
+				await updateGlobalState("ttsVoiceAzure", voice)
+				setTtsVoiceForProvider("azure", voice)
+				await provider.postStateToWebview()
 			}
 			break
 		}

@@ -76,6 +76,7 @@ import {
 	setTtsSpeed,
 	setTtsProvider,
 	setTtsVoice,
+	setTtsVoiceForProvider,
 	initializeTtsManager,
 	updateTtsCredentials,
 } from "../../utils/tts"
@@ -805,6 +806,20 @@ export class ClineProvider
 				setTtsVoice(state.ttsVoice)
 			} else {
 				console.log(`[TTS Init] No ttsVoice in state`)
+			}
+
+			// Set provider-specific voices if configured
+			if (state.ttsVoiceNative) {
+				console.log(`[TTS Init] Setting native voice from state: ${state.ttsVoiceNative}`)
+				setTtsVoiceForProvider("native", state.ttsVoiceNative)
+			}
+			if (state.ttsVoiceGoogleCloud) {
+				console.log(`[TTS Init] Setting Google Cloud voice from state: ${state.ttsVoiceGoogleCloud}`)
+				setTtsVoiceForProvider("google-cloud", state.ttsVoiceGoogleCloud)
+			}
+			if (state.ttsVoiceAzure) {
+				console.log(`[TTS Init] Setting Azure voice from state: ${state.ttsVoiceAzure}`)
+				setTtsVoiceForProvider("azure", state.ttsVoiceAzure)
 			}
 		})
 
@@ -1798,6 +1813,9 @@ export class ClineProvider
 			ttsSpeed,
 			ttsProvider,
 			ttsVoice,
+			ttsVoiceNative,
+			ttsVoiceGoogleCloud,
+			ttsVoiceAzure,
 			azureRegion,
 			diffEnabled,
 			enableCheckpoints,
@@ -1926,6 +1944,9 @@ export class ClineProvider
 			ttsSpeed: ttsSpeed ?? 1.0,
 			ttsProvider: ttsProvider ?? "native",
 			ttsVoice: ttsVoice,
+			ttsVoiceNative: ttsVoiceNative,
+			ttsVoiceGoogleCloud: ttsVoiceGoogleCloud,
+			ttsVoiceAzure: ttsVoiceAzure,
 			azureRegion: azureRegion,
 			diffEnabled: diffEnabled ?? true,
 			enableCheckpoints: enableCheckpoints ?? true,
@@ -2153,6 +2174,9 @@ export class ClineProvider
 			ttsSpeed: stateValues.ttsSpeed ?? 1.0,
 			ttsProvider: stateValues.ttsProvider ?? "native",
 			ttsVoice: stateValues.ttsVoice,
+			ttsVoiceNative: stateValues.ttsVoiceNative,
+			ttsVoiceGoogleCloud: stateValues.ttsVoiceGoogleCloud,
+			ttsVoiceAzure: stateValues.ttsVoiceAzure,
 			azureRegion: stateValues.azureRegion,
 			diffEnabled: stateValues.diffEnabled ?? true,
 			enableCheckpoints: stateValues.enableCheckpoints ?? true,

@@ -19,13 +19,25 @@ type NotificationSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	ttsSpeed?: number
 	ttsProvider?: TtsProviderType
 	ttsVoice?: string
+	ttsVoiceNative?: string
+	ttsVoiceGoogleCloud?: string
+	ttsVoiceAzure?: string
 	azureRegion?: string
 	googleCloudTtsApiKey?: string
 	azureTtsApiKey?: string
 	soundEnabled?: boolean
 	soundVolume?: number
 	setCachedStateField: SetCachedStateField<
-		"ttsEnabled" | "ttsSpeed" | "ttsProvider" | "ttsVoice" | "azureRegion" | "soundEnabled" | "soundVolume"
+		| "ttsEnabled"
+		| "ttsSpeed"
+		| "ttsProvider"
+		| "ttsVoice"
+		| "ttsVoiceNative"
+		| "ttsVoiceGoogleCloud"
+		| "ttsVoiceAzure"
+		| "azureRegion"
+		| "soundEnabled"
+		| "soundVolume"
 	>
 }
 
@@ -34,6 +46,9 @@ export const NotificationSettings = ({
 	ttsSpeed,
 	ttsProvider = "native",
 	ttsVoice,
+	ttsVoiceNative,
+	ttsVoiceGoogleCloud,
+	ttsVoiceAzure,
 	azureRegion,
 	googleCloudTtsApiKey,
 	azureTtsApiKey,
@@ -100,7 +115,7 @@ export const NotificationSettings = ({
 		return () => window.removeEventListener("message", handleMessage)
 	}, [])
 
-	const handleInputChange = useCallback(
+	const _handleInputChange = useCallback(
 		<E,>(field: keyof NotificationSettingsProps, transform: (event: E) => any = inputEventTransform) =>
 			(event: E | Event) => {
 				setCachedStateField(field as any, transform(event as E))
@@ -111,11 +126,17 @@ export const NotificationSettings = ({
 	const handleProviderChange = useCallback(
 		(provider: TtsProviderType) => {
 			setCachedStateField("ttsProvider", provider)
-			// Reset voice selection when provider changes
-			setCachedStateField("ttsVoice", "")
+			// Load the voice for the new provider
+			const providerVoiceMap = {
+				native: ttsVoiceNative,
+				"google-cloud": ttsVoiceGoogleCloud,
+				azure: ttsVoiceAzure,
+			}
+			const newVoice = providerVoiceMap[provider] || ""
+			setCachedStateField("ttsVoice", newVoice)
 			setAvailableVoices([])
 		},
-		[setCachedStateField],
+		[setCachedStateField, ttsVoiceNative, ttsVoiceGoogleCloud, ttsVoiceAzure],
 	)
 
 	const handleGoogleCloudApiKeyUpdate = useCallback(
@@ -310,7 +331,15 @@ export const NotificationSettings = ({
 								</label>
 								<SearchableSelect
 									value={ttsVoice || ""}
-									onValueChange={(value) => setCachedStateField("ttsVoice", value)}
+									onValueChange={(value) => {
+									// Update both the current voice and the provider-specific voice
+									setCachedStateField("ttsVoice", value)
+									if (ttsProvider === "google-cloud") {
+										setCachedStateField("ttsVoiceGoogleCloud", value)
+									} else if (ttsProvider === "azure") {
+										setCachedStateField("ttsVoiceAzure", value)
+									}
+								}}
 									options={availableVoices.map((voice) => ({
 										value: voice.id,
 										label: voice.name,

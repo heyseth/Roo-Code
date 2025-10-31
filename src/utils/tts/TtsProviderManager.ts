@@ -16,6 +16,7 @@ export class TtsProviderManager {
 	private providers: Map<TtsProviderType, TtsProvider>
 	private activeProviderType: TtsProviderType = "native"
 	private currentVoice: string | undefined
+	private providerVoices: Map<TtsProviderType, string | undefined> = new Map()
 	private queue: Array<{ text: string; options: TtsSpeakOptions }> = []
 	private isProcessing: boolean = false
 
@@ -122,6 +123,17 @@ export class TtsProviderManager {
 		}
 
 		this.activeProviderType = providerType
+		
+		// Restore the voice for this provider
+		const savedVoice = this.providerVoices.get(providerType)
+		if (savedVoice) {
+			this.currentVoice = savedVoice
+			console.log(`[TTS] Restored voice for ${providerType}: ${savedVoice}`)
+		} else {
+			this.currentVoice = undefined
+			console.log(`[TTS] No saved voice for ${providerType}`)
+		}
+		
 		console.log(`[TTS] Successfully set active provider to: ${providerType}`)
 	}
 
@@ -195,10 +207,22 @@ export class TtsProviderManager {
 	}
 
 	/**
-	 * Set the current voice
+	 * Set the current voice for the active provider
 	 */
 	setVoice(voiceId: string): void {
 		this.currentVoice = voiceId
+		this.providerVoices.set(this.activeProviderType, voiceId)
+	}
+
+	/**
+	 * Set voice for a specific provider
+	 */
+	setVoiceForProvider(providerType: TtsProviderType, voiceId: string): void {
+		this.providerVoices.set(providerType, voiceId)
+		// If this is the active provider, also update currentVoice
+		if (providerType === this.activeProviderType) {
+			this.currentVoice = voiceId
+		}
 	}
 
 	/**
@@ -206,6 +230,13 @@ export class TtsProviderManager {
 	 */
 	getVoice(): string | undefined {
 		return this.currentVoice
+	}
+
+	/**
+	 * Get voice for a specific provider
+	 */
+	getVoiceForProvider(providerType: TtsProviderType): string | undefined {
+		return this.providerVoices.get(providerType)
 	}
 
 	/**

@@ -221,6 +221,7 @@ export class AzureTtsProvider implements TtsProvider {
 
 						this.currentAudio = spawn("powershell", ["-NoProfile", "-Command", psScript])
 
+					if (this.currentAudio) {
 						this.currentAudio.on("close", (code: number) => {
 							this.currentAudio = undefined
 							// Cleanup temp file
@@ -237,6 +238,7 @@ export class AzureTtsProvider implements TtsProvider {
 							fs.unlink(tmpFile).catch(() => {})
 							reject(this.createError("PLAYBACK_ERROR", error.message))
 						})
+					}
 					} catch (err: any) {
 						reject(this.createError("PLAYBACK_ERROR", err?.message || "Failed to play audio on Windows"))
 					}
@@ -262,10 +264,13 @@ export class AzureTtsProvider implements TtsProvider {
 
 				this.currentAudio = spawn(player, args)
 
+				if (this.currentAudio && this.currentAudio.stdin) {
 				// Write audio data to stdin
 				this.currentAudio.stdin.write(audioContent)
 				this.currentAudio.stdin.end()
+				}
 
+				if (this.currentAudio) {
 				this.currentAudio.on("close", (code: number) => {
 					this.currentAudio = undefined
 					if (code === 0) {
@@ -279,6 +284,7 @@ export class AzureTtsProvider implements TtsProvider {
 					this.currentAudio = undefined
 					reject(this.createError("PLAYBACK_ERROR", error.message))
 				})
+				}
 			} catch (error: any) {
 				this.currentAudio = undefined
 				reject(this.createError("PLAYBACK_ERROR", error?.message || "Failed to play audio"))

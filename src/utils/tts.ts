@@ -87,11 +87,27 @@ export const setTtsVoice = (voiceId: string): void => {
 }
 
 /**
+ * Set voice for a specific provider
+ */
+export const setTtsVoiceForProvider = (providerType: TtsProviderType, voiceId: string): void => {
+	const manager = getTtsManager()
+	manager.setVoiceForProvider(providerType, voiceId)
+}
+
+/**
  * Get the current voice
  */
 export const getTtsVoice = (): string | undefined => {
 	const manager = getTtsManager()
 	return manager.getVoice()
+}
+
+/**
+ * Get voice for a specific provider
+ */
+export const getTtsVoiceForProvider = (providerType: TtsProviderType): string | undefined => {
+	const manager = getTtsManager()
+	return manager.getVoiceForProvider(providerType)
 }
 
 /**

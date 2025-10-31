@@ -182,6 +182,17 @@ vi.mock("vscode", () => ({
 vi.mock("../../../utils/tts", () => ({
 	setTtsEnabled: vi.fn(),
 	setTtsSpeed: vi.fn(),
+	setTtsProvider: vi.fn(),
+	setTtsVoice: vi.fn(),
+	setTtsVoiceForProvider: vi.fn(),
+	initializeTtsManager: vi.fn().mockResolvedValue(undefined),
+	updateTtsCredentials: vi.fn().mockResolvedValue(undefined),
+	getTtsVoices: vi.fn().mockResolvedValue([]),
+	getTtsVoicesForProvider: vi.fn().mockResolvedValue([]),
+	validateTtsProvider: vi.fn().mockResolvedValue(undefined),
+	isTtsProviderConfigured: vi.fn().mockResolvedValue(true),
+	playTts: vi.fn().mockResolvedValue(undefined),
+	stopTts: vi.fn(),
 }))
 
 vi.mock("../../../api", () => ({
@@ -527,6 +538,9 @@ describe("ClineProvider", () => {
 			ttsProvider: "native",
 			ttsVoice: undefined,
 			azureRegion: undefined,
+			ttsVoiceNative: undefined,
+			ttsVoiceGoogleCloud: undefined,
+			ttsVoiceAzure: undefined,
 			googleCloudTtsApiKey: undefined,
 			azureTtsApiKey: undefined,
 			soundVolume: 0.5,
