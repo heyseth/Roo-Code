@@ -168,6 +168,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 		ttsVoiceGoogleCloud,
 		ttsVoiceAzure,
 		azureRegion,
+		azureTtsTier,
 		googleCloudTtsApiKey,
 		azureTtsApiKey,
 		soundVolume,
@@ -734,10 +735,11 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 							ttsSpeed={ttsSpeed}
 							ttsProvider={ttsProvider}
 							ttsVoice={ttsVoice}
-						ttsVoiceNative={ttsVoiceNative}
-						ttsVoiceGoogleCloud={ttsVoiceGoogleCloud}
-						ttsVoiceAzure={ttsVoiceAzure}
+							ttsVoiceNative={ttsVoiceNative}
+							ttsVoiceGoogleCloud={ttsVoiceGoogleCloud}
+							ttsVoiceAzure={ttsVoiceAzure}
 							azureRegion={azureRegion}
+							azureTtsTier={azureTtsTier}
 							googleCloudTtsApiKey={googleCloudTtsApiKey}
 							azureTtsApiKey={azureTtsApiKey}
 							soundEnabled={soundEnabled}

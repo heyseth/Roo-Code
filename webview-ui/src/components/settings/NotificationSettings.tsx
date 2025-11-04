@@ -23,6 +23,7 @@ type NotificationSettingsProps = HTMLAttributes<HTMLDivElement> & {
 	ttsVoiceGoogleCloud?: string
 	ttsVoiceAzure?: string
 	azureRegion?: string
+	azureTtsTier?: "F0" | "S0"
 	googleCloudTtsApiKey?: string
 	azureTtsApiKey?: string
 	soundEnabled?: boolean
@@ -36,6 +37,7 @@ type NotificationSettingsProps = HTMLAttributes<HTMLDivElement> & {
 		| "ttsVoiceGoogleCloud"
 		| "ttsVoiceAzure"
 		| "azureRegion"
+		| "azureTtsTier"
 		| "soundEnabled"
 		| "soundVolume"
 	>
@@ -50,6 +52,7 @@ export const NotificationSettings = ({
 	ttsVoiceGoogleCloud,
 	ttsVoiceAzure,
 	azureRegion,
+	azureTtsTier = "S0",
 	googleCloudTtsApiKey,
 	azureTtsApiKey,
 	soundEnabled,
@@ -320,6 +323,35 @@ export const NotificationSettings = ({
 										</label>
 									</VSCodeTextField>
 								</div>
+								<div>
+									<label className="block font-medium mb-1">
+										{t("settings:notifications.tts.azure.tierLabel")}
+									</label>
+									<Select
+										value={azureTtsTier}
+										onValueChange={(value) => {
+											setCachedStateField("azureTtsTier", value as "F0" | "S0")
+										}}>
+										<SelectTrigger className="w-full" data-testid="azure-tier-select">
+											<SelectValue
+												placeholder={t("settings:notifications.tts.azure.tierPlaceholder")}
+											/>
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="F0">
+												F0 - {t("settings:notifications.tts.azure.tierF0")}
+											</SelectItem>
+											<SelectItem value="S0">
+												S0 - {t("settings:notifications.tts.azure.tierS0")}
+											</SelectItem>
+										</SelectContent>
+									</Select>
+									<div className="text-xs text-muted-foreground mt-1">
+										{azureTtsTier === "F0"
+											? t("settings:notifications.tts.azure.tierF0Description")
+											: t("settings:notifications.tts.azure.tierS0Description")}
+									</div>
+								</div>
 							</>
 						)}
 
@@ -332,14 +364,14 @@ export const NotificationSettings = ({
 								<SearchableSelect
 									value={ttsVoice || ""}
 									onValueChange={(value) => {
-									// Update both the current voice and the provider-specific voice
-									setCachedStateField("ttsVoice", value)
-									if (ttsProvider === "google-cloud") {
-										setCachedStateField("ttsVoiceGoogleCloud", value)
-									} else if (ttsProvider === "azure") {
-										setCachedStateField("ttsVoiceAzure", value)
-									}
-								}}
+										// Update both the current voice and the provider-specific voice
+										setCachedStateField("ttsVoice", value)
+										if (ttsProvider === "google-cloud") {
+											setCachedStateField("ttsVoiceGoogleCloud", value)
+										} else if (ttsProvider === "azure") {
+											setCachedStateField("ttsVoiceAzure", value)
+										}
+									}}
 									options={availableVoices.map((voice) => ({
 										value: voice.id,
 										label: voice.name,

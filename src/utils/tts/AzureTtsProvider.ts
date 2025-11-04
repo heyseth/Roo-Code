@@ -1,6 +1,14 @@
 import axios from "axios"
 import { TtsProvider, TtsProviderType, TtsVoice, TtsSpeakOptions, TtsProviderError } from "./types"
 import { ChildProcess } from "child_process"
+import {
+	type AzureTtsTier,
+	type AzureTtsUsage,
+	detectAzureVoiceType,
+	calculateAzureTtsCost,
+	updateAzureTtsUsage,
+} from "../../shared/ttsCost"
+import { ContextProxy } from "../../core/config/ContextProxy"
 
 /**
  * Microsoft Azure Text-to-Speech Provider (REST API)
@@ -152,8 +160,15 @@ export class AzureTtsProvider implements TtsProvider {
 				responseType: "arraybuffer",
 			})
 
+			// Log all response headers to investigate pricing tier detection
+			console.log(`[AzureTTS] Response status: ${response.status}`)
+			console.log(`[AzureTTS] Response headers:`, JSON.stringify(response.headers, null, 2))
+
 			// Convert array buffer to audio buffer
 			const audioBuffer = Buffer.from(response.data)
+
+			// Track API cost
+			await this.trackCost(text, voiceName, options)
 
 			// Play audio using system audio player
 			options.onStart?.()
@@ -221,24 +236,26 @@ export class AzureTtsProvider implements TtsProvider {
 
 						this.currentAudio = spawn("powershell", ["-NoProfile", "-Command", psScript])
 
-					if (this.currentAudio) {
-						this.currentAudio.on("close", (code: number) => {
-							this.currentAudio = undefined
-							// Cleanup temp file
-							fs.unlink(tmpFile).catch(() => {})
-							if (code === 0 || code === null) {
-								resolve()
-							} else {
-								reject(this.createError("PLAYBACK_ERROR", `Audio playback failed with code ${code}`))
-							}
-						})
+						if (this.currentAudio) {
+							this.currentAudio.on("close", (code: number) => {
+								this.currentAudio = undefined
+								// Cleanup temp file
+								fs.unlink(tmpFile).catch(() => {})
+								if (code === 0 || code === null) {
+									resolve()
+								} else {
+									reject(
+										this.createError("PLAYBACK_ERROR", `Audio playback failed with code ${code}`),
+									)
+								}
+							})
 
-						this.currentAudio.on("error", (error: Error) => {
-							this.currentAudio = undefined
-							fs.unlink(tmpFile).catch(() => {})
-							reject(this.createError("PLAYBACK_ERROR", error.message))
-						})
-					}
+							this.currentAudio.on("error", (error: Error) => {
+								this.currentAudio = undefined
+								fs.unlink(tmpFile).catch(() => {})
+								reject(this.createError("PLAYBACK_ERROR", error.message))
+							})
+						}
 					} catch (err: any) {
 						reject(this.createError("PLAYBACK_ERROR", err?.message || "Failed to play audio on Windows"))
 					}
@@ -265,25 +282,25 @@ export class AzureTtsProvider implements TtsProvider {
 				this.currentAudio = spawn(player, args)
 
 				if (this.currentAudio && this.currentAudio.stdin) {
-				// Write audio data to stdin
-				this.currentAudio.stdin.write(audioContent)
-				this.currentAudio.stdin.end()
+					// Write audio data to stdin
+					this.currentAudio.stdin.write(audioContent)
+					this.currentAudio.stdin.end()
 				}
 
 				if (this.currentAudio) {
-				this.currentAudio.on("close", (code: number) => {
-					this.currentAudio = undefined
-					if (code === 0) {
-						resolve()
-					} else {
-						reject(this.createError("PLAYBACK_ERROR", `Audio playback failed with code ${code}`))
-					}
-				})
+					this.currentAudio.on("close", (code: number) => {
+						this.currentAudio = undefined
+						if (code === 0) {
+							resolve()
+						} else {
+							reject(this.createError("PLAYBACK_ERROR", `Audio playback failed with code ${code}`))
+						}
+					})
 
-				this.currentAudio.on("error", (error: Error) => {
-					this.currentAudio = undefined
-					reject(this.createError("PLAYBACK_ERROR", error.message))
-				})
+					this.currentAudio.on("error", (error: Error) => {
+						this.currentAudio = undefined
+						reject(this.createError("PLAYBACK_ERROR", error.message))
+					})
 				}
 			} catch (error: any) {
 				this.currentAudio = undefined
@@ -316,6 +333,76 @@ export class AzureTtsProvider implements TtsProvider {
 			}
 
 			throw this.createError("VALIDATION_ERROR", error?.message || "Failed to validate Azure configuration")
+		}
+	}
+
+	/**
+	 * Track API cost for Azure TTS usage
+	 */
+	private async trackCost(text: string, voiceName: string, options: TtsSpeakOptions): Promise<void> {
+		try {
+			// Get the pricing tier from global state
+			const tier = (ContextProxy.instance.getGlobalState("azureTtsTier") as AzureTtsTier | undefined) || "S0"
+
+			// Detect voice type from voice name
+			const voiceType = detectAzureVoiceType(voiceName)
+
+			// Calculate character count
+			const charactersUsed = text.length
+
+			// Get current usage
+			const currentUsage = ContextProxy.instance.getGlobalState("azureTtsUsage") as AzureTtsUsage | undefined
+
+			// Calculate cost
+			const costDetails = calculateAzureTtsCost(
+				tier,
+				voiceType,
+				charactersUsed,
+				currentUsage?.charactersUsed || 0,
+			)
+
+			// Update usage tracking
+			const updatedUsage = updateAzureTtsUsage(currentUsage, tier, charactersUsed)
+
+			// Save updated usage
+			await ContextProxy.instance.updateGlobalState("azureTtsUsage", updatedUsage)
+
+			console.log(`[AzureTTS] Cost tracking:`, {
+				tier,
+				voiceType,
+				charactersUsed,
+				totalUsageThisMonth: updatedUsage.charactersUsed,
+				charactersCostFree: costDetails.charactersCostFree,
+				charactersCostPaid: costDetails.charactersCostPaid,
+				cost: costDetails.cost,
+				costFormatted: `$${costDetails.cost.toFixed(4)}`,
+			})
+
+			// For F0 tier, warn if approaching the limit
+			if (tier === "F0") {
+				const limit = 500_000
+				const percentUsed = (updatedUsage.charactersUsed / limit) * 100
+				if (percentUsed >= 90) {
+					console.warn(
+						`[AzureTTS] WARNING: You have used ${percentUsed.toFixed(1)}% of your F0 free tier limit (${updatedUsage.charactersUsed.toLocaleString()}/${limit.toLocaleString()} characters)`,
+					)
+				}
+			}
+
+			// Invoke cost callback if provided (this is what records the cost to the task)
+			if (options.onCostIncurred && costDetails.cost > 0) {
+				options.onCostIncurred({
+					provider: "azure",
+					modelType: voiceType,
+					charactersUsed,
+					charactersCostFree: costDetails.charactersCostFree,
+					charactersCostPaid: costDetails.charactersCostPaid,
+					cost: costDetails.cost,
+				})
+			}
+		} catch (error) {
+			// Don't fail the TTS operation if cost tracking fails
+			console.error(`[AzureTTS] Error tracking cost:`, error)
 		}
 	}
 

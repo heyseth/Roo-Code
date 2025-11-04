@@ -1280,7 +1280,7 @@ export const webviewMessageHandler = async (
 									cost: details.cost,
 									charactersUsed: details.charactersUsed,
 									modelType: details.modelType,
-								}
+								},
 							)
 						}
 					},
@@ -1367,6 +1367,14 @@ export const webviewMessageHandler = async (
 						azureRegion,
 					})
 				}
+				await provider.postStateToWebview()
+			}
+			break
+		}
+		case "azureTtsTier": {
+			const tier = message.tier
+			if (tier === "F0" || tier === "S0") {
+				await updateGlobalState("azureTtsTier", tier)
 				await provider.postStateToWebview()
 			}
 			break

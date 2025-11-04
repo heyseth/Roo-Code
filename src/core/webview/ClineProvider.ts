@@ -1817,6 +1817,7 @@ export class ClineProvider
 			ttsVoiceGoogleCloud,
 			ttsVoiceAzure,
 			azureRegion,
+			azureTtsTier,
 			diffEnabled,
 			enableCheckpoints,
 			taskHistory,
@@ -1948,6 +1949,7 @@ export class ClineProvider
 			ttsVoiceGoogleCloud: ttsVoiceGoogleCloud,
 			ttsVoiceAzure: ttsVoiceAzure,
 			azureRegion: azureRegion,
+			azureTtsTier: azureTtsTier,
 			diffEnabled: diffEnabled ?? true,
 			enableCheckpoints: enableCheckpoints ?? true,
 			shouldShowAnnouncement:
@@ -2178,6 +2180,7 @@ export class ClineProvider
 			ttsVoiceGoogleCloud: stateValues.ttsVoiceGoogleCloud,
 			ttsVoiceAzure: stateValues.ttsVoiceAzure,
 			azureRegion: stateValues.azureRegion,
+			azureTtsTier: stateValues.azureTtsTier,
 			diffEnabled: stateValues.diffEnabled ?? true,
 			enableCheckpoints: stateValues.enableCheckpoints ?? true,
 			soundVolume: stateValues.soundVolume,

@@ -122,6 +122,14 @@ export const globalSettingsSchema = z.object({
 			}),
 		})
 		.optional(),
+	azureTtsTier: z.enum(["F0", "S0"]).optional(),
+	azureTtsUsage: z
+		.object({
+			lastResetDate: z.string(),
+			tier: z.enum(["F0", "S0"]),
+			charactersUsed: z.number(),
+		})
+		.optional(),
 	soundEnabled: z.boolean().optional(),
 	soundVolume: z.number().optional(),
 

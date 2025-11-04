@@ -554,7 +554,13 @@
 				"apiKeyPlaceholder": "Enter your Azure Speech API key",
 				"regionLabel": "Azure Region",
 				"regionPlaceholder": "e.g., eastus, westus2",
-				"getApiKey": "Get Azure Speech API Key"
+				"getApiKey": "Get Azure Speech API Key",
+				"tierLabel": "Pricing Tier",
+				"tierPlaceholder": "Select your Azure pricing tier",
+				"tierF0": "Free",
+				"tierS0": "Pay-as-you-go",
+				"tierF0Description": "Free tier: 0.5 million characters per month, then usage stops",
+				"tierS0Description": "Pay-as-you-go: All usage billed at $15 per million characters"
 			}
 		}
 	},

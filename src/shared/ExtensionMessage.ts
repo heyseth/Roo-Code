@@ -258,6 +258,7 @@ export type ExtensionState = Pick<
 	| "ttsVoiceGoogleCloud"
 	| "ttsVoiceAzure"
 	| "azureRegion"
+	| "azureTtsTier"
 	| "soundEnabled"
 	| "soundVolume"
 	// | "maxOpenTabsContext" // Optional in GlobalSettings, required here.

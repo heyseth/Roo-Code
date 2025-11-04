@@ -102,6 +102,7 @@ export interface WebviewMessage {
 		| "ttsVoiceGoogleCloud"
 		| "ttsVoiceAzure"
 		| "azureRegion"
+		| "azureTtsTier"
 		| "getTtsVoices"
 		| "validateTtsProvider"
 		| "googleCloudTtsApiKey"
@@ -256,6 +257,7 @@ export interface WebviewMessage {
 	voices?: Array<{ id: string; name: string; language: string; gender?: string; provider: string }>
 	error?: string
 	region?: string
+	tier?: "F0" | "S0"
 	serverName?: string
 	toolName?: string
 	alwaysAllow?: boolean
