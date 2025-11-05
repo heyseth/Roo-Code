@@ -352,6 +352,7 @@ const SettingsView = forwardRef<SettingsViewRef, SettingsViewProps>(({ onDone, t
 			vscode.postMessage({ type: "ttsProvider", ttsProvider: ttsProvider })
 			vscode.postMessage({ type: "ttsVoice", text: ttsVoice })
 			vscode.postMessage({ type: "azureRegion", region: azureRegion })
+			vscode.postMessage({ type: "azureTtsTier", tier: azureTtsTier })
 			vscode.postMessage({ type: "soundVolume", value: soundVolume })
 			vscode.postMessage({ type: "diffEnabled", bool: diffEnabled })
 			vscode.postMessage({ type: "enableCheckpoints", bool: enableCheckpoints })

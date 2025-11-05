@@ -347,9 +347,7 @@ export const NotificationSettings = ({
 										</SelectContent>
 									</Select>
 									<div className="text-xs text-muted-foreground mt-1">
-										{azureTtsTier === "F0"
-											? t("settings:notifications.tts.azure.tierF0Description")
-											: t("settings:notifications.tts.azure.tierS0Description")}
+										{t("settings:notifications.tts.azure.tierDescription")}
 									</div>
 								</div>
 							</>
