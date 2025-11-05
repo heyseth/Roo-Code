@@ -129,17 +129,10 @@ export const NotificationSettings = ({
 	const handleProviderChange = useCallback(
 		(provider: TtsProviderType) => {
 			setCachedStateField("ttsProvider", provider)
-			// Load the voice for the new provider
-			const providerVoiceMap = {
-				native: ttsVoiceNative,
-				"google-cloud": ttsVoiceGoogleCloud,
-				azure: ttsVoiceAzure,
-			}
-			const newVoice = providerVoiceMap[provider] || ""
-			setCachedStateField("ttsVoice", newVoice)
+			// Clear available voices when switching providers
 			setAvailableVoices([])
 		},
-		[setCachedStateField, ttsVoiceNative, ttsVoiceGoogleCloud, ttsVoiceAzure],
+		[setCachedStateField],
 	)
 
 	const handleGoogleCloudApiKeyUpdate = useCallback(
@@ -360,14 +353,21 @@ export const NotificationSettings = ({
 									{t("settings:notifications.tts.voiceLabel")}
 								</label>
 								<SearchableSelect
-									value={ttsVoice || ""}
+									value={
+										ttsProvider === "google-cloud"
+											? ttsVoiceGoogleCloud || ""
+											: ttsProvider === "azure"
+												? ttsVoiceAzure || ""
+												: ttsVoiceNative || ""
+									}
 									onValueChange={(value) => {
-										// Update both the current voice and the provider-specific voice
-										setCachedStateField("ttsVoice", value)
+										// Update the provider-specific voice
 										if (ttsProvider === "google-cloud") {
 											setCachedStateField("ttsVoiceGoogleCloud", value)
 										} else if (ttsProvider === "azure") {
 											setCachedStateField("ttsVoiceAzure", value)
+										} else if (ttsProvider === "native") {
+											setCachedStateField("ttsVoiceNative", value)
 										}
 									}}
 									options={availableVoices.map((voice) => ({
