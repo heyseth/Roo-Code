@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import React, { useEffect, useMemo, useRef, useState } from "react"
 import { getIconForFilePath, getIconUrlByName, getIconForDirectoryPath } from "vscode-material-icons"
 import { Settings } from "lucide-react"
 
@@ -47,8 +47,6 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 	const [materialIconsBaseUri, setMaterialIconsBaseUri] = useState("")
 	const menuRef = useRef<HTMLDivElement>(null)
 	const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
-	const [hasMouseMoved, setHasMouseMoved] = useState(false)
-	const lastMousePosRef = useRef<{ x: number; y: number } | null>(null)
 
 	const filteredOptions = useMemo(() => {
 		return getContextMenuOptions(searchQuery, selectedType, queryItems, dynamicSearchResults, modes, commands)
@@ -76,31 +74,9 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 		setMaterialIconsBaseUri(w.MATERIAL_ICONS_BASE_URI)
 	}, [])
 
-	// Track mouse movement to distinguish between actual hover and incidental cursor position
-	const handleMouseMove = useCallback((e: React.MouseEvent) => {
-		const currentPos = { x: e.clientX, y: e.clientY }
-
-		// If this is the first mouse position, just store it
-		if (!lastMousePosRef.current) {
-			lastMousePosRef.current = currentPos
-			return
-		}
-
-		// Check if the mouse has moved more than a threshold (e.g., 5 pixels)
-		const deltaX = Math.abs(currentPos.x - lastMousePosRef.current.x)
-		const deltaY = Math.abs(currentPos.y - lastMousePosRef.current.y)
-
-		if (deltaX > 5 || deltaY > 5) {
-			setHasMouseMoved(true)
-			lastMousePosRef.current = currentPos
-		}
-	}, [])
-
-	// Reset mouse tracking when menu opens/closes
+	// Reset hover state when menu opens/closes
 	useEffect(() => {
-		setHasMouseMoved(false)
 		setHoveredIndex(null)
-		lastMousePosRef.current = null
 	}, [searchQuery])
 
 	const renderOptionContent = (option: ContextMenuQueryItem) => {
@@ -398,7 +374,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 											backgroundColor: "var(--vscode-list-activeSelectionBackground)",
 											color: "var(--vscode-list-activeSelectionForeground)",
 										}
-									: index === hoveredIndex && isOptionSelectable(option) && hasMouseMoved
+									: index === hoveredIndex && isOptionSelectable(option)
 										? {
 												backgroundColor: "var(--vscode-list-hoverBackground)",
 												color: "var(--vscode-dropdown-foreground)",
@@ -408,12 +384,10 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
 											}),
 							}}
 							onMouseEnter={() => {
-								// Only update hover state if mouse has actually moved
-								if (isOptionSelectable(option) && hasMouseMoved) {
+								if (isOptionSelectable(option)) {
 									setHoveredIndex(index)
 								}
 							}}
-							onMouseMove={handleMouseMove}
 							onMouseLeave={() => {
 								if (index === hoveredIndex) {
 									setHoveredIndex(null)
